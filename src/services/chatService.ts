@@ -20,7 +20,7 @@ export class ChatService {
 
       if (error) {
         logger.error('Error creating message:', error);
-        throw new ChatError(error.message);
+        throw new ChatError(error);
       }
       if (!data) {
         logger.error('No data returned when creating message');
@@ -31,7 +31,7 @@ export class ChatService {
       return data as Message;
     } catch (error) {
       logger.error('Error in createMessage:', error);
-      throw error;
+      throw error instanceof ChatError ? error : new ChatError(error as Error);
     }
   }
 
@@ -45,12 +45,12 @@ export class ChatService {
 
       if (error) {
         logger.error('Error updating message:', error);
-        throw new ChatError(error.message);
+        throw new ChatError(error);
       }
       logger.debug('Message updated successfully');
     } catch (error) {
       logger.error('Error in updateMessage:', error);
-      throw error;
+      throw error instanceof ChatError ? error : new ChatError(error as Error);
     }
   }
 
@@ -64,7 +64,7 @@ export class ChatService {
 
       if (error) {
         logger.error('Error from chat function:', error);
-        throw new ChatError(error.message);
+        throw new ChatError(error);
       }
 
       if (!data?.content) {
@@ -76,7 +76,7 @@ export class ChatService {
       return data.content;
     } catch (error) {
       logger.error('Error in sendMessageToAI:', error);
-      throw error;
+      throw error instanceof ChatError ? error : new ChatError(error as Error);
     }
   }
 }

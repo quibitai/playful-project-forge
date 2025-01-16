@@ -3,7 +3,7 @@ import { Message } from "@/types/chat";
 import { useToast } from "@/hooks/use-toast";
 import { ChatService } from "@/services/chatService";
 import { logger } from "@/services/loggingService";
-import { handleError } from "@/utils/errorHandling";
+import { ChatError, handleError } from "@/utils/errorHandling";
 
 export function useChatMessages() {
   const [isLoading, setIsLoading] = useState(false);

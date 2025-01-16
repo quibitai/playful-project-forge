@@ -1,10 +1,22 @@
+import { PostgrestError } from '@supabase/supabase-js';
+
 /**
  * Custom error class for chat-related errors
  */
 export class ChatError extends Error {
-  constructor(message: string, public readonly code?: string) {
-    super(message);
+  constructor(message: string | Error | PostgrestError, public readonly code?: string) {
+    const errorMessage = typeof message === 'string' 
+      ? message 
+      : message instanceof Error 
+        ? message.message 
+        : 'An unexpected error occurred';
+    
+    super(errorMessage);
     this.name = 'ChatError';
+  }
+
+  toString(): string {
+    return this.message;
   }
 }
 
