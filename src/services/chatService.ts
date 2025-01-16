@@ -48,16 +48,25 @@ export class ChatService {
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('Stream complete. Final content:', fullContent);
+          break;
+        }
 
         const chunk = decoder.decode(value);
+        console.log('Received chunk:', chunk);
+        
         const lines = chunk.split('\n');
         
         for (const line of lines) {
-          if (line.trim() === '' || !line.startsWith('data: ')) continue;
+          if (line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
           
           const data = line.slice(6);
-          if (data === '[DONE]') break;
+          if (data === '[DONE]') {
+            console.log('Received [DONE] signal');
+            break;
+          }
 
           try {
             const parsed = JSON.parse(data);
@@ -66,18 +75,28 @@ export class ChatService {
               fullContent += content;
               console.log('Streaming content:', content);
 
-              await supabase
+              // Update the message in the database
+              const { error } = await supabase
                 .from('messages')
                 .update({ content: fullContent })
                 .eq('id', messageId);
+
+              if (error) {
+                console.error('Error updating message:', error);
+                throw error;
+              }
 
               onUpdate(messageId, fullContent);
             }
           } catch (e) {
             console.error('Error parsing chunk:', e);
+            console.error('Raw chunk data:', data);
           }
         }
       }
+    } catch (error) {
+      console.error('Error in stream processing:', error);
+      throw error;
     } finally {
       reader.releaseLock();
     }
@@ -95,6 +114,8 @@ export class ChatService {
     model: string,
     accessToken: string
   ): Promise<Response> {
+    console.log('Sending chat message:', { model, messageCount: messages.length });
+    
     const response = await fetch(`${this.SUPABASE_URL}/functions/v1/chat`, {
       method: 'POST',
       headers: {
@@ -105,6 +126,7 @@ export class ChatService {
     });
 
     if (!response.ok) {
+      console.error('Chat API error:', response.status, response.statusText);
       throw new Error('Failed to send chat message');
     }
 

@@ -25,7 +25,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
-        messages,
+        messages: messages.map(({ role, content }) => ({ role, content })),
         stream: true,
       }),
     });
