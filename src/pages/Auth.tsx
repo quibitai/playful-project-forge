@@ -20,7 +20,8 @@ const Auth = () => {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         navigate("/");
       }
@@ -30,23 +31,7 @@ const Auth = () => {
       }
 
       // Handle auth errors
-      if (event === "USER_UPDATED" || event === "SIGNED_IN") {
-        supabase.auth.getSession().then(({ error }) => {
-          if (error) {
-            const message = getErrorMessage(error);
-            toast({
-              variant: "destructive",
-              title: "Authentication Error",
-              description: message,
-            });
-          }
-        });
-      }
-    });
-
-    // Listen for auth state changes to catch sign-in errors
-    const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') {
+      if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
         const { error } = await supabase.auth.getSession();
         if (error) {
           const message = getErrorMessage(error);
@@ -59,27 +44,19 @@ const Auth = () => {
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
-      authListener.data.subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
   const getErrorMessage = (error: AuthError) => {
     if (error instanceof AuthApiError) {
       switch (error.message) {
-        case "Password should be at least 6 characters.":
-          return "Password must be at least 6 characters long.";
-        case "weak_password":
-          return "Please choose a stronger password (minimum 6 characters).";
         case "Invalid login credentials":
-          return "Invalid email or password. Please check your credentials and try again.";
-        case "invalid_credentials":
           return "Invalid email or password. Please check your credentials.";
-        case "email_not_confirmed":
+        case "Email not confirmed":
           return "Please verify your email address before signing in.";
-        case "user_not_found":
-          return "No user found with these credentials.";
+        case "Invalid refresh token":
+        case "Invalid token":
+          return "Your session has expired. Please sign in again.";
         default:
           return error.message;
       }
@@ -107,40 +84,24 @@ const Auth = () => {
                 }
               },
               style: {
-                input: {
-                  borderRadius: '0.375rem',
-                },
-                message: {
-                  color: 'rgb(var(--destructive))',
-                  marginBottom: '0.5rem',
-                },
-                container: {
-                  gap: '1rem',
-                },
                 button: {
                   borderRadius: '0.375rem',
                   padding: '0.5rem 1rem',
                 },
                 anchor: {
                   color: 'rgb(var(--primary))',
+                },
+                container: {
+                  gap: '1rem',
+                },
+                message: {
+                  color: 'rgb(var(--destructive))',
+                  marginBottom: '0.5rem',
                 }
               }
             }}
             providers={[]}
-            localization={{
-              variables: {
-                sign_up: {
-                  password_label: 'Password (minimum 6 characters)',
-                  email_label: 'Email',
-                  button_label: 'Create Account',
-                },
-                sign_in: {
-                  password_label: 'Password',
-                  email_label: 'Email',
-                  button_label: 'Sign In',
-                }
-              }
-            }}
+            redirectTo={window.location.origin}
           />
         </CardContent>
       </Card>
