@@ -53,7 +53,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true });
       const { conversation, messages } = await loadSingleConversation(id);
       dispatch({ type: 'SET_CURRENT_CONVERSATION', payload: conversation });
-      dispatch({ type: 'SET_MESSAGES', payload: messages });
+      // Ensure messages have the correct role type
+      const typedMessages = messages.map(message => ({
+        ...message,
+        role: message.role as 'user' | 'assistant' | 'system'
+      }));
+      dispatch({ type: 'SET_MESSAGES', payload: typedMessages });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
