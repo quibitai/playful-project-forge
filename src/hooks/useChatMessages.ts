@@ -8,14 +8,17 @@ export function useChatMessages() {
   const { toast } = useToast();
 
   const handleStreamResponse = async (
-    reader: ReadableStreamDefaultReader<Uint8Array>,
+    response: Response,
     messageId: string,
-    onUpdate: (content: string) => void
+    onUpdate: (id: string, content: string) => void
   ) => {
     let fullContent = '';
     const decoder = new TextDecoder();
 
     try {
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -44,7 +47,7 @@ export function useChatMessages() {
               if (updateError) throw updateError;
 
               // Update the message in the UI
-              onUpdate(fullContent);
+              onUpdate(messageId, fullContent);
             }
           } catch (e) {
             console.error('Error parsing chunk:', e);
@@ -54,8 +57,6 @@ export function useChatMessages() {
     } catch (error) {
       console.error('Error processing stream:', error);
       throw error;
-    } finally {
-      reader.releaseLock();
     }
   };
 
@@ -103,7 +104,7 @@ export function useChatMessages() {
       if (assistantMessageError) throw assistantMessageError;
 
       // Call the chat function with streaming response
-      const response = await supabase.functions.invoke<ReadableStream>('chat', {
+      const response = await supabase.functions.invoke('chat', {
         body: { 
           messages: [...previousMessages, userMessage].map(msg => ({
             role: msg.role,
@@ -120,9 +121,9 @@ export function useChatMessages() {
       if (!response.data) throw new Error('No response from chat function');
 
       await handleStreamResponse(
-        response.data.getReader(),
+        response.data,
         savedAssistantMessage.id,
-        (content) => onMessageUpdate(savedAssistantMessage.id, content)
+        onMessageUpdate
       );
 
       return [savedUserMessage, savedAssistantMessage];
