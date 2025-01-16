@@ -128,7 +128,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
 
       // Call the chat function with streaming response
-      const { data: stream, error: functionError } = await supabase.functions.invoke('chat', {
+      const response = await supabase.functions.invoke<ReadableStream>('chat', {
         body: { 
           messages: [...state.messages, userMessage].map(msg => ({
             role: msg.role,
@@ -136,13 +136,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })),
           model: state.currentConversation.model,
         },
-        responseType: 'stream',
+        headers: {
+          'Accept': 'text/event-stream',
+        }
       });
 
-      if (functionError) throw functionError;
-      if (!stream) throw new Error('No response from chat function');
+      if (response.error) throw response.error;
+      if (!response.data) throw new Error('No response from chat function');
 
-      const reader = stream.getReader();
+      const reader = response.data.getReader();
       let fullContent = '';
       const decoder = new TextDecoder();
 
