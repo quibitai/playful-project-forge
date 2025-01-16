@@ -14,10 +14,13 @@ import {
   Meh,
   AlertCircle
 } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
+
+type ReactionType = Database['public']['Enums']['reaction_type'];
 
 interface Reaction {
   id: string;
-  reaction: string;
+  reaction: ReactionType;
   user_id: string;
 }
 
@@ -36,14 +39,14 @@ const reactionIcons = {
   'frown': Frown,
   'meh': Meh,
   'annoyed': AlertCircle,
-};
+} as const;
 
 export const MessageReactions = ({ messageId, reactions }: MessageReactionsProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [localReactions, setLocalReactions] = useState<Reaction[]>(reactions);
 
-  const handleReaction = async (reactionType: string) => {
+  const handleReaction = async (reactionType: ReactionType) => {
     if (!user) return;
 
     try {
@@ -87,17 +90,17 @@ export const MessageReactions = ({ messageId, reactions }: MessageReactionsProps
     }
   };
 
-  const getReactionCount = (type: string) => {
+  const getReactionCount = (type: ReactionType) => {
     return localReactions.filter(r => r.reaction === type).length;
   };
 
-  const hasUserReacted = (type: string) => {
+  const hasUserReacted = (type: ReactionType) => {
     return user && localReactions.some(r => r.user_id === user.id && r.reaction === type);
   };
 
   return (
     <div className="flex flex-wrap gap-2 mt-2">
-      {Object.entries(reactionIcons).map(([type, Icon]) => (
+      {(Object.entries(reactionIcons) as [ReactionType, typeof reactionIcons[keyof typeof reactionIcons]][]).map(([type, Icon]) => (
         <Button
           key={type}
           variant="ghost"
