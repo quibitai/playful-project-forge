@@ -6,6 +6,7 @@ import { Message, MessageRole } from "@/types/messages";
 import { useChatMessages } from "@/hooks/useChatMessages";
 import { useConversations } from "@/hooks/useConversations";
 import { useToast } from "@/hooks/use-toast";
+import { logger } from "@/services/loggingService";
 
 const ChatContext = createContext<{
   state: ChatState;
@@ -42,6 +43,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
       return conversation;
     } catch (error) {
+      logger.error('Error in createConversation:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to create conversation",
@@ -57,6 +59,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const conversations = await loadAllConversations();
       dispatch({ type: 'SET_CONVERSATIONS', payload: conversations });
     } catch (error) {
+      logger.error('Error in loadConversations:', error);
       toast({
         title: "Error",
         description: "Failed to load conversations",
@@ -72,7 +75,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true });
       const { conversation, messages } = await loadSingleConversation(id);
       
-      // Ensure messages have the correct role type
       const typedMessages: Message[] = messages.map(msg => ({
         ...msg,
         role: msg.role as MessageRole,
@@ -82,6 +84,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_CURRENT_CONVERSATION', payload: conversation });
       dispatch({ type: 'SET_MESSAGES', payload: typedMessages });
     } catch (error) {
+      logger.error('Error in loadConversation:', error);
       toast({
         title: "Error",
         description: "Failed to load conversation",
@@ -105,6 +108,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
+      // Create and display user message immediately
       const userMessage: Message = {
         role: 'user',
         content,
@@ -112,6 +116,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         user_id: user.id,
       };
 
+      // Create placeholder for assistant message
       const assistantMessage: Message = {
         role: 'assistant',
         content: '',
@@ -119,8 +124,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         user_id: null,
       };
 
+      // Add both messages to UI immediately
       dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
       dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
+
+      logger.debug('Sending message:', { content, conversationId: state.currentConversation.id });
 
       const [finalUserMessage, finalAssistantMessage] = await sendChatMessage(
         content,
@@ -130,6 +138,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         state.messages,
         (id, content) => {
           if (id) {
+            logger.debug('Updating message content:', { id, contentLength: content.length });
             dispatch({
               type: 'UPDATE_MESSAGE',
               payload: { id, content }
@@ -152,7 +161,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           payload: { id: finalAssistantMessage.id, content: finalAssistantMessage.content } 
         });
       }
+
+      logger.debug('Message sending complete');
     } catch (error) {
+      logger.error('Error in sendMessage:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send message",
