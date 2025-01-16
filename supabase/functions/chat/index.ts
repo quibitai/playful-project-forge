@@ -36,8 +36,13 @@ serve(async (req) => {
       throw new Error(error.error?.message || 'Failed to generate response');
     }
 
-    // Return the streaming response directly
-    return new Response(openAIResponse.body, {
+    // Create a transform stream to process the response
+    const transformStream = new TransformStream();
+    
+    // Pipe the response to the transform stream
+    openAIResponse.body?.pipeTo(transformStream.writable);
+
+    return new Response(transformStream.readable, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',

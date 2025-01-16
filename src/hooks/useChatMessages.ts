@@ -12,13 +12,13 @@ export function useChatMessages() {
     messageId: string,
     onUpdate: (id: string, content: string) => void
   ) => {
-    let fullContent = '';
-    const decoder = new TextDecoder();
     const reader = response.body?.getReader();
-    
     if (!reader) {
       throw new Error('No reader available');
     }
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
 
     try {
       while (true) {
@@ -29,7 +29,8 @@ export function useChatMessages() {
         const lines = chunk.split('\n');
         
         for (const line of lines) {
-          if (line.trim() === '' || !line.startsWith('data: ')) continue;
+          if (line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
           
           const data = line.slice(6);
           if (data === '[DONE]') break;
@@ -39,7 +40,7 @@ export function useChatMessages() {
             const content = parsed.choices[0]?.delta?.content;
             if (content) {
               fullContent += content;
-              console.log('Received content:', content);
+              console.log('Streaming content:', content);
 
               // Update the message in the database
               const { error: updateError } = await supabase
@@ -113,26 +114,30 @@ export function useChatMessages() {
 
       console.log('Calling chat function with model:', model);
 
-      // Call the chat function with streaming response
-      const { data: streamResponse, error: streamError } = await supabase.functions.invoke('chat', {
-        body: { 
-          messages: [...previousMessages, userMessage].map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          model,
-        },
-        headers: {
-          'Accept': 'text/event-stream',
+      // Call the chat function
+      const response = await fetch(
+        `${supabase.functions.getUrl('chat')}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabase.auth.getSession()?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: [...previousMessages, userMessage].map(msg => ({
+              role: msg.role,
+              content: msg.content
+            })),
+            model,
+          }),
         }
-      });
+      );
 
-      if (streamError) throw streamError;
-      if (!streamResponse) throw new Error('No response from chat function');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get response from chat function');
+      }
 
-      // Create a new Response object from the stream
-      const response = new Response(streamResponse);
-      
       await handleStreamResponse(
         response,
         savedAssistantMessage.id,
