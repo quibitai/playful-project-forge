@@ -1,19 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-/**
- * CORS headers configuration for cross-origin requests
- */
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-/**
- * Processes OpenAI streaming responses and formats them for client consumption
- * @param stream ReadableStream from OpenAI response
- * @returns Transformed ReadableStream for client
- */
 async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStream> {
   const reader = stream.getReader();
   const encoder = new TextEncoder();
@@ -46,8 +38,7 @@ async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStre
                 const json = JSON.parse(line.slice(6));
                 const content = json.choices[0]?.delta?.content;
                 if (content) {
-                  // Format the response in a consistent way for the client
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                  controller.enqueue(encoder.encode(content));
                 }
               } catch (error) {
                 console.error('Error parsing JSON:', error);

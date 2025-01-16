@@ -3,20 +3,11 @@ import { Message } from "@/types/chat";
 import { ChatError, handleError } from "@/utils/errorHandling";
 import { logger } from "./loggingService";
 
-/**
- * Type guard to validate message role
- */
 function isValidMessageRole(role: string): role is Message['role'] {
   return ['user', 'assistant', 'system'].includes(role);
 }
 
-/**
- * Service for handling chat-related operations
- */
 export class ChatService {
-  /**
-   * Creates a new message in the database
-   */
   static async createMessage(messageData: {
     role: string;
     content: string;
@@ -24,7 +15,6 @@ export class ChatService {
     user_id: string | null;
   }): Promise<Message> {
     try {
-      // Validate role before inserting
       if (!isValidMessageRole(messageData.role)) {
         throw new ChatError(`Invalid message role: ${messageData.role}`);
       }
@@ -38,12 +28,10 @@ export class ChatService {
       if (error) throw new ChatError(error.message, error.code);
       if (!data) throw new ChatError('Failed to create message');
 
-      // Ensure the role is properly typed in the returned message
       if (!isValidMessageRole(data.role)) {
         throw new ChatError(`Invalid role returned from database: ${data.role}`);
       }
 
-      // Type assertion is safe here because we've validated the role
       return data as Message;
     } catch (error) {
       logger.error(error, 'createMessage');
@@ -51,9 +39,6 @@ export class ChatService {
     }
   }
 
-  /**
-   * Sends a chat message to the OpenAI API via Supabase Edge Function
-   */
   static async sendChatMessage(
     messages: Message[],
     model: string,
@@ -80,9 +65,6 @@ export class ChatService {
     }
   }
 
-  /**
-   * Handles the streaming response from the chat function
-   */
   static async handleStreamResponse(
     response: Response,
     messageId: string,
@@ -95,6 +77,7 @@ export class ChatService {
       }
 
       let accumulatedContent = '';
+      const decoder = new TextDecoder();
       
       while (true) {
         const { done, value } = await reader.read();
@@ -104,7 +87,7 @@ export class ChatService {
           break;
         }
 
-        const chunk = new TextDecoder().decode(value);
+        const chunk = decoder.decode(value);
         accumulatedContent += chunk;
         
         onUpdate(messageId, accumulatedContent);
