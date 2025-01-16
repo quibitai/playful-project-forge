@@ -1,10 +1,69 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+/**
+ * CORS headers configuration for cross-origin requests
+ */
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+/**
+ * Processes OpenAI streaming responses and formats them for client consumption
+ * @param stream ReadableStream from OpenAI response
+ * @returns Transformed ReadableStream for client
+ */
+async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStream> {
+  const reader = stream.getReader();
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            controller.close();
+            break;
+          }
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            
+            if (line.includes('[DONE]')) {
+              controller.close();
+              return;
+            }
+
+            if (line.startsWith('data: ')) {
+              try {
+                const json = JSON.parse(line.slice(6));
+                const content = json.choices[0]?.delta?.content;
+                if (content) {
+                  // Format the response in a consistent way for the client
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                }
+              } catch (error) {
+                console.error('Error parsing JSON:', error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Stream processing error:', error);
+        controller.error(error);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+  });
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -42,57 +101,14 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
 
-    // Transform the response into a readable stream
-    const stream = openAIResponse.body;
-    const reader = stream.getReader();
-    const encoder = new TextEncoder();
+    if (!openAIResponse.body) {
+      throw new Error('No response body from OpenAI');
+    }
 
-    const responseStream = new ReadableStream({
-      async start(controller) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) {
-              controller.close();
-              break;
-            }
+    // Process and transform the OpenAI stream
+    const processedStream = await processOpenAIStream(openAIResponse.body);
 
-            const text = new TextDecoder().decode(value);
-            const lines = text.split('\n');
-
-            for (const line of lines) {
-              if (line.trim() === '') continue;
-              
-              if (line.includes('[DONE]')) {
-                controller.close();
-                return;
-              }
-
-              if (line.startsWith('data: ')) {
-                try {
-                  const json = JSON.parse(line.slice(6));
-                  const content = json.choices[0]?.delta?.content;
-                  if (content) {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
-                  }
-                } catch (error) {
-                  console.error('Error parsing JSON:', error);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Stream processing error:', error);
-          controller.error(error);
-        }
-      },
-      cancel() {
-        reader.releaseLock();
-      }
-    });
-
-    return new Response(responseStream, {
+    return new Response(processedStream, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',

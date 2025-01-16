@@ -1,9 +1,18 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/types/chat";
 
+/**
+ * Service class for handling chat-related operations
+ * Manages message creation, updates, and OpenAI interactions
+ */
 export class ChatService {
   private static readonly SUPABASE_URL = 'https://eosulcourcwvrlgkaiwv.supabase.co';
 
+  /**
+   * Creates a new message in the database
+   * @param messageData Message data to be created
+   * @returns Created message
+   */
   static async createMessage(messageData: {
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -16,16 +25,27 @@ export class ChatService {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error creating message:', error);
+      throw error;
+    }
     return data as Message;
   }
 
+  /**
+   * Handles the streaming response from OpenAI
+   * @param response Response from the chat edge function
+   * @param messageId ID of the message to update
+   * @param onUpdate Callback function to update UI with new content
+   */
   static async handleStreamResponse(
     response: Response,
     messageId: string,
     onUpdate: (id: string, content: string) => void
   ): Promise<void> {
-    if (!response.body) throw new Error('No response body');
+    if (!response.body) {
+      throw new Error('No response body');
+    }
     
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -46,10 +66,18 @@ export class ChatService {
             const data = JSON.parse(line.slice(6));
             if (data.content) {
               content += data.content;
-              await supabase
+              // Update the message content in the database
+              const { error } = await supabase
                 .from('messages')
                 .update({ content })
                 .eq('id', messageId);
+
+              if (error) {
+                console.error('Error updating message:', error);
+                throw error;
+              }
+
+              // Update the UI
               onUpdate(messageId, content);
             }
           } catch (e) {
@@ -62,6 +90,13 @@ export class ChatService {
     }
   }
 
+  /**
+   * Sends a chat message to the OpenAI API via edge function
+   * @param messages Array of previous messages
+   * @param model OpenAI model to use
+   * @param accessToken Supabase access token
+   * @returns Response from the edge function
+   */
   static async sendChatMessage(
     messages: Message[],
     model: string,
@@ -79,7 +114,12 @@ export class ChatService {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to send chat message');
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Chat function error:', error);
+      throw new Error('Failed to send chat message');
+    }
+
     return response;
   }
 }
