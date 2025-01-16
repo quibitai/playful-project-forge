@@ -42,6 +42,7 @@ async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStre
                 }
               } catch (error) {
                 console.error('Error parsing JSON:', error);
+                continue; // Skip this chunk if there's an error parsing it
               }
             }
           }
