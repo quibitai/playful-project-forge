@@ -4,10 +4,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { chatReducer } from "@/reducers/chatReducer";
 import { ChatState, Message, Conversation } from "@/types/chat";
 import { supabase } from "@/integrations/supabase/client";
-import { createConversation as createConversationOp, 
-         loadConversations as loadConversationsOp,
-         loadConversation as loadConversationOp,
-         sendMessage as sendMessageOp } from "@/operations/chatOperations";
+import { 
+  createConversation as createConversationOp,
+  loadConversations as loadConversationsOp,
+  loadConversation as loadConversationOp,
+  sendMessage as sendMessageOp 
+} from "@/operations/chatOperations";
 
 const ChatContext = createContext<{
   state: ChatState;

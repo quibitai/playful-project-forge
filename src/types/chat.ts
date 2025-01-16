@@ -4,7 +4,7 @@ export interface Message {
   content: string;
   conversation_id: string;
   created_at?: string;
-  user_id?: string;
+  user_id?: string | null;
 }
 
 export interface Conversation {
