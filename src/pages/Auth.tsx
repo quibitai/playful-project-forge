@@ -5,7 +5,7 @@ import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { AuthError, AuthApiError } from "@supabase/supabase-js";
 
 const Auth = () => {
@@ -13,6 +13,13 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Check if user is already authenticated
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/");
+      }
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
         navigate("/");
@@ -39,10 +46,10 @@ const Auth = () => {
 
     // Listen for auth state changes to catch sign-in errors
     const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
-        const currentError = await supabase.auth.getSession();
-        if (currentError.error) {
-          const message = getErrorMessage(currentError.error);
+      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') {
+        const { error } = await supabase.auth.getSession();
+        if (error) {
+          const message = getErrorMessage(error);
           toast({
             variant: "destructive",
             title: "Authentication Error",
@@ -109,6 +116,13 @@ const Auth = () => {
                 },
                 container: {
                   gap: '1rem',
+                },
+                button: {
+                  borderRadius: '0.375rem',
+                  padding: '0.5rem 1rem',
+                },
+                anchor: {
+                  color: 'rgb(var(--primary))',
                 }
               }
             }}
@@ -118,10 +132,12 @@ const Auth = () => {
                 sign_up: {
                   password_label: 'Password (minimum 6 characters)',
                   email_label: 'Email',
+                  button_label: 'Create Account',
                 },
                 sign_in: {
                   password_label: 'Password',
                   email_label: 'Email',
+                  button_label: 'Sign In',
                 }
               }
             }}
