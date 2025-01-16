@@ -15,7 +15,7 @@ export class MessageService {
 
     if (error) {
       logger.error('Error creating message:', error);
-      throw new Error(error instanceof PostgrestError ? error.message : 'Failed to create message');
+      throw new Error(error.message ?? 'Failed to create message');
     }
 
     if (!data) {
@@ -40,7 +40,7 @@ export class MessageService {
 
     if (error) {
       logger.error('Error updating message:', error);
-      throw new Error(error instanceof PostgrestError ? error.message : 'Failed to update message');
+      throw new Error(error.message ?? 'Failed to update message');
     }
   }
 
