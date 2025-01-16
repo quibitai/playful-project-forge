@@ -7,13 +7,21 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { messages, model } = await req.json();
+    console.log('Received request:', { model, messageCount: messages.length });
 
+    if (!Deno.env.get('OPENAI_API_KEY')) {
+      console.error('OPENAI_API_KEY is not set');
+      throw new Error('OpenAI API key is not configured');
+    }
+
+    console.log('Sending request to OpenAI...');
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -27,7 +35,13 @@ serve(async (req) => {
       }),
     });
 
-    // Stream the response directly to the client
+    if (!openAIResponse.ok) {
+      const error = await openAIResponse.json();
+      console.error('OpenAI API error:', error);
+      throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    console.log('Streaming response from OpenAI...');
     return new Response(openAIResponse.body, {
       headers: {
         ...corsHeaders,
@@ -37,6 +51,7 @@ serve(async (req) => {
       },
     });
   } catch (error) {
+    console.error('Error in chat function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
