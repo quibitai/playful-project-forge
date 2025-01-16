@@ -138,57 +138,78 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (response.error) throw response.error;
+      if (!response.data) {
+        throw new Error('No response from chat function');
+      }
 
       // Process the streaming response
-      const reader = response.data.getReader();
-      const decoder = new TextDecoder();
+      const reader = new ReadableStream({
+        start(controller) {
+          const decoder = new TextDecoder();
+          const processChunk = (chunk: Uint8Array) => {
+            const text = decoder.decode(chunk);
+            const lines = text.split('\n');
+            
+            for (const line of lines) {
+              if (line.trim() === '' || !line.startsWith('data: ')) continue;
+              
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                controller.close();
+                return;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices[0]?.delta?.content;
+                if (content) {
+                  controller.enqueue(content);
+                }
+              } catch (e) {
+                console.error('Error parsing chunk:', e);
+              }
+            }
+          };
+
+          const pump = () => {
+            response.data.read().then(({ done, value }) => {
+              if (done) {
+                controller.close();
+                return;
+              }
+              processChunk(value);
+              pump();
+            });
+          };
+
+          pump();
+        },
+      });
+
       let fullContent = '';
+      const textDecoder = new TextDecoder();
 
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        for await (const chunk of reader) {
+          fullContent += chunk;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+          // Update the message in the database
+          const { error: updateError } = await supabase
+            .from('messages')
+            .update({ content: fullContent })
+            .eq('id', savedAssistantMessage.id);
 
-          for (const line of lines) {
-            if (line.trim() === '' || !line.startsWith('data: ')) continue;
-            
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+          if (updateError) throw updateError;
 
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content;
-              if (content) {
-                fullContent += content;
-
-                // Update the message in the database
-                const { error: updateError } = await supabase
-                  .from('messages')
-                  .update({ content: fullContent })
-                  .eq('id', savedAssistantMessage.id);
-
-                if (updateError) throw updateError;
-
-                // Update the message in the UI
-                dispatch({
-                  type: 'UPDATE_MESSAGE',
-                  payload: { id: savedAssistantMessage.id, content: fullContent }
-                });
-              }
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
-            }
-          }
+          // Update the message in the UI
+          dispatch({
+            type: 'UPDATE_MESSAGE',
+            payload: { id: savedAssistantMessage.id, content: fullContent }
+          });
         }
       } catch (error) {
         console.error('Error processing stream:', error);
         throw error;
-      } finally {
-        reader.releaseLock();
       }
 
     } catch (error) {
