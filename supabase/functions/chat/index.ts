@@ -33,6 +33,12 @@ serve(async (req) => {
       throw new Error('OpenAI API key is not configured');
     }
 
+    // Format messages for OpenAI
+    const formattedMessages = messages.map(({ role, content }) => ({
+      role: role as 'user' | 'assistant' | 'system',
+      content: content
+    }));
+
     console.log('Sending request to OpenAI API');
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -42,7 +48,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
-        messages: messages.map(({ role, content }) => ({ role, content })),
+        messages: formattedMessages,
         stream: false,
       }),
     });

@@ -103,7 +103,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const [userMessage, assistantMessage] = await sendChatMessage(
+      const userMessage: Message = {
+        role: 'user',
+        content,
+        conversation_id: state.currentConversation.id,
+        user_id: user.id,
+      };
+
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        conversation_id: state.currentConversation.id,
+        user_id: null,
+      };
+
+      dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
+      dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
+
+      const [finalUserMessage, finalAssistantMessage] = await sendChatMessage(
         content,
         state.currentConversation.id,
         user.id,
@@ -115,14 +132,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         })
       );
 
+      // Update messages with final versions
       dispatch({ 
-        type: 'ADD_MESSAGE', 
-        payload: { ...userMessage, role: 'user' as const } 
+        type: 'UPDATE_MESSAGE', 
+        payload: { id: finalUserMessage.id!, content: finalUserMessage.content } 
       });
-
       dispatch({ 
-        type: 'ADD_MESSAGE', 
-        payload: { ...assistantMessage, role: 'assistant' as const } 
+        type: 'UPDATE_MESSAGE', 
+        payload: { id: finalAssistantMessage.id!, content: finalAssistantMessage.content } 
       });
     } catch (error) {
       toast({
