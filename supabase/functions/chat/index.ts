@@ -13,18 +13,13 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not set');
-    }
-
     const { messages, model = 'gpt-4o-mini' } = await req.json();
     console.log('Processing chat request:', { model, messageCount: messages.length });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -40,44 +35,8 @@ serve(async (req) => {
       throw new Error(error.error?.message || 'Failed to generate response');
     }
 
-    // Transform the response into a proper stream
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = response.body?.getReader();
-        if (!reader) {
-          controller.close();
-          return;
-        }
-
-        const decoder = new TextDecoder();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-              break;
-            }
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              if (line.trim() === '') continue;
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
-                controller.enqueue(line + '\n');
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error processing stream:', error);
-          controller.error(error);
-        }
-      },
-    });
-
-    return new Response(stream, {
+    // Return the response stream directly
+    return new Response(response.body, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
