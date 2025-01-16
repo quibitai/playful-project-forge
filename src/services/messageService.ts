@@ -15,7 +15,7 @@ export class MessageService {
 
     if (error) {
       logger.error('Error creating message:', error);
-      throw new Error((error as PostgrestError).message ?? 'Failed to create message');
+      throw new Error('Failed to create message');
     }
 
     if (!data) {
@@ -40,7 +40,7 @@ export class MessageService {
 
     if (error) {
       logger.error('Error updating message:', error);
-      throw new Error((error as PostgrestError).message ?? 'Failed to update message');
+      throw new Error('Failed to update message');
     }
   }
 
@@ -54,7 +54,7 @@ export class MessageService {
 
       if (response.error) {
         logger.error('AI response error:', response.error);
-        throw new Error(response.error.message || 'Failed to get AI response');
+        throw new Error('Failed to get AI response');
       }
 
       if (!response.data?.data?.content) {
@@ -65,7 +65,7 @@ export class MessageService {
       return response.data.data.content;
     } catch (error) {
       logger.error('Error in sendMessageToAI:', error);
-      throw error instanceof Error ? error : new Error('Unknown error in AI response');
+      throw new Error('Failed to process AI response');
     }
   }
 }
