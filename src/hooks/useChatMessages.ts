@@ -118,14 +118,9 @@ export function useChatMessages() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No active session');
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('VITE_SUPABASE_URL environment variable is not defined');
-      }
-
       // Call the chat function using the REST endpoint
       const response = await fetch(
-        `${supabaseUrl}/functions/v1/chat`,
+        `${supabase.supabaseUrl}/functions/v1/chat`,
         {
           method: 'POST',
           headers: {
