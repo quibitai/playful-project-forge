@@ -118,9 +118,14 @@ export function useChatMessages() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No active session');
 
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('VITE_SUPABASE_URL environment variable is not defined');
+      }
+
       // Call the chat function using the REST endpoint
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
+        `${supabaseUrl}/functions/v1/chat`,
         {
           method: 'POST',
           headers: {
@@ -138,8 +143,8 @@ export function useChatMessages() {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to get response from chat function');
+        const errorText = await response.text();
+        throw new Error(`Failed to get response from chat function: ${errorText}`);
       }
 
       await handleStreamResponse(
@@ -153,7 +158,7 @@ export function useChatMessages() {
       console.error('Error in sendMessage:', error);
       toast({
         title: "Error",
-        description: "Failed to send message",
+        description: error instanceof Error ? error.message : "Failed to send message",
         variant: "destructive",
       });
       throw error;
