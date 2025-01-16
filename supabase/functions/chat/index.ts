@@ -7,16 +7,13 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { messages, model } = await req.json();
-    console.log('Processing chat request:', { model, messageCount: messages.length });
 
-    // Make request to OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -25,24 +22,13 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
-        messages: messages.map(({ role, content }) => ({ role, content })),
+        messages,
         stream: true,
       }),
     });
 
-    if (!openAIResponse.ok) {
-      const error = await openAIResponse.json();
-      console.error('OpenAI API error:', error);
-      throw new Error(error.error?.message || 'Failed to generate response');
-    }
-
-    // Create a transform stream to process the response
-    const transformStream = new TransformStream();
-    
-    // Pipe the response to the transform stream
-    openAIResponse.body?.pipeTo(transformStream.writable);
-
-    return new Response(transformStream.readable, {
+    // Stream the response directly to the client
+    return new Response(openAIResponse.body, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
@@ -51,15 +37,11 @@ serve(async (req) => {
       },
     });
   } catch (error) {
-    console.error('Error in chat function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
