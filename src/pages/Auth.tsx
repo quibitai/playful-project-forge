@@ -23,7 +23,7 @@ const Auth = () => {
       }
 
       // Handle auth errors
-      if (event === "USER_UPDATED") {
+      if (event === "USER_UPDATED" || event === "SIGNED_IN") {
         supabase.auth.getSession().then(({ error }) => {
           if (error) {
             const message = getErrorMessage(error);
@@ -37,7 +37,25 @@ const Auth = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Listen for auth state changes to catch sign-in errors
+    const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        const currentError = await supabase.auth.getSession();
+        if (currentError.error) {
+          const message = getErrorMessage(currentError.error);
+          toast({
+            variant: "destructive",
+            title: "Authentication Error",
+            description: message,
+          });
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      authListener.data.subscription.unsubscribe();
+    };
   }, [navigate, toast]);
 
   const getErrorMessage = (error: AuthError) => {
@@ -47,6 +65,8 @@ const Auth = () => {
           return "Password must be at least 6 characters long.";
         case "weak_password":
           return "Please choose a stronger password (minimum 6 characters).";
+        case "Invalid login credentials":
+          return "Invalid email or password. Please check your credentials and try again.";
         case "invalid_credentials":
           return "Invalid email or password. Please check your credentials.";
         case "email_not_confirmed":
@@ -79,7 +99,6 @@ const Auth = () => {
                   }
                 }
               },
-              // Add some helpful text about password requirements
               style: {
                 input: {
                   borderRadius: '0.375rem',
@@ -88,6 +107,9 @@ const Auth = () => {
                   color: 'rgb(var(--destructive))',
                   marginBottom: '0.5rem',
                 },
+                container: {
+                  gap: '1rem',
+                }
               }
             }}
             providers={[]}
@@ -95,6 +117,10 @@ const Auth = () => {
               variables: {
                 sign_up: {
                   password_label: 'Password (minimum 6 characters)',
+                  email_label: 'Email',
+                },
+                sign_in: {
+                  password_label: 'Password',
                   email_label: 'Email',
                 }
               }
