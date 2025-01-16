@@ -14,17 +14,30 @@ const ChatInterface = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadConversations().catch(error => {
-      toast({
-        title: "Error",
-        description: "Failed to load conversations",
-        variant: "destructive",
-      });
-    });
-  }, []);
+    const initializeChat = async () => {
+      try {
+        await loadConversations();
+        // Create initial conversation if none exists
+        if (!state.currentConversation) {
+          await createConversation(model);
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to initialize chat",
+          variant: "destructive",
+        });
+      }
+    };
+
+    if (user) {
+      initializeChat();
+    }
+  }, [user]); // Only run when user changes
 
   const handleSubmit = async (content: string) => {
     try {
+      // Ensure there's an active conversation
       if (!state.currentConversation) {
         const conversation = await createConversation(model);
         if (!conversation) {
@@ -46,6 +59,14 @@ const ChatInterface = () => {
     }
   };
 
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-lg text-muted-foreground">Please sign in to continue</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen flex-col bg-background">
       <header className="flex items-center justify-between border-b p-4">
@@ -55,7 +76,7 @@ const ChatInterface = () => {
         </div>
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            {user?.email ? `Signed in as ${user.email}` : 'Loading...'}
+            {user?.email}
           </p>
           <Button onClick={signOut} variant="outline">
             Sign Out
