@@ -142,7 +142,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // Process streaming response
       let fullContent = '';
-      const reader = new ReadableStreamDefaultReader(response.data);
+      const reader = new ReadableStreamDefaultReader(new Response(response.data).body!);
       const decoder = new TextDecoder();
 
       try {
