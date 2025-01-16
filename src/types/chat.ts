@@ -6,8 +6,8 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   conversation_id: string;
+  user_id: string | null;
   created_at?: string;
-  user_id?: string | null;
   reactions?: MessageReaction[];
 }
 
