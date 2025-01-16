@@ -70,8 +70,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const { conversation, messages } = await loadSingleConversation(id);
+      
+      // Ensure messages have the correct role type
+      const typedMessages: Message[] = messages.map(msg => ({
+        ...msg,
+        role: msg.role as "user" | "assistant" | "system"
+      }));
+      
       dispatch({ type: 'SET_CURRENT_CONVERSATION', payload: conversation });
-      dispatch({ type: 'SET_MESSAGES', payload: messages });
+      dispatch({ type: 'SET_MESSAGES', payload: typedMessages });
     } catch (error) {
       toast({
         title: "Error",
