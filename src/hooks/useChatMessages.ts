@@ -19,7 +19,7 @@ export function useChatMessages() {
   ) => {
     try {
       setIsLoading(true);
-      logger.debug('Sending message:', { conversationId, model });
+      logger.debug('Starting message send process:', { conversationId, model });
       
       const userMessage = await ChatService.createMessage({
         role: 'user',
@@ -27,6 +27,7 @@ export function useChatMessages() {
         conversation_id: conversationId,
         user_id: userId,
       });
+      logger.debug('User message created:', userMessage);
 
       const assistantMessage = await ChatService.createMessage({
         role: 'assistant',
@@ -34,11 +35,13 @@ export function useChatMessages() {
         conversation_id: conversationId,
         user_id: null,
       });
+      logger.debug('Assistant message placeholder created:', assistantMessage);
 
       const aiResponse = await ChatService.sendMessageToAI(
         [...previousMessages, userMessage],
         model
       );
+      logger.debug('AI response received:', aiResponse);
 
       await ChatService.updateMessage(assistantMessage.id, aiResponse);
       onMessageUpdate(assistantMessage.id, aiResponse);
@@ -46,7 +49,7 @@ export function useChatMessages() {
       return [userMessage, assistantMessage];
     } catch (error) {
       const handledError = handleError(error);
-      logger.error(handledError, 'sendMessage');
+      logger.error('Error in sendMessage:', handledError);
       
       toast({
         title: "Error",

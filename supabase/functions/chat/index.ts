@@ -8,8 +8,15 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('Request received:', {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
+  });
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response(null, { 
       headers: corsHeaders,
       status: 204
@@ -18,15 +25,15 @@ serve(async (req) => {
 
   try {
     const { messages, model } = await req.json();
-    console.log('Processing request with model:', model);
+    console.log('Processing request:', { messageCount: messages.length, model });
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
-      console.error('OPENAI_API_KEY is not set');
+      console.error('OPENAI_API_KEY is not configured');
       throw new Error('OpenAI API key is not configured');
     }
 
-    console.log('Sending request to OpenAI...');
+    console.log('Sending request to OpenAI API');
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -40,6 +47,8 @@ serve(async (req) => {
       }),
     });
 
+    console.log('OpenAI API response status:', openAIResponse.status);
+
     if (!openAIResponse.ok) {
       const error = await openAIResponse.json();
       console.error('OpenAI API error:', error);
@@ -47,8 +56,9 @@ serve(async (req) => {
     }
 
     const data = await openAIResponse.json();
-    const content = data.choices[0].message.content;
+    console.log('OpenAI API response received');
 
+    const content = data.choices[0].message.content;
     return new Response(
       JSON.stringify({ content }),
       {
@@ -56,11 +66,13 @@ serve(async (req) => {
         status: 200,
       }
     );
-
   } catch (error) {
     console.error('Error in chat function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: error.stack,
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
