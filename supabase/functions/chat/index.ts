@@ -4,18 +4,24 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req) => {
+  console.log('Received request:', req.method);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 204
+    });
   }
 
   try {
     const { messages, model } = await req.json();
-    console.log('Received request:', { model, messageCount: messages.length });
-    console.log('Messages:', JSON.stringify(messages, null, 2));
+    console.log('Processing request with model:', model);
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
@@ -51,7 +57,6 @@ serve(async (req) => {
 
     const reader = openAIResponse.body.getReader();
     const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -65,10 +70,9 @@ serve(async (req) => {
               break;
             }
 
-            const chunk = decoder.decode(value);
-            console.log('Processing chunk:', chunk);
-            
+            const chunk = new TextDecoder().decode(value);
             const lines = chunk.split('\n');
+            
             for (const line of lines) {
               if (line.trim() === '') continue;
               
@@ -83,12 +87,10 @@ serve(async (req) => {
                   const json = JSON.parse(line.slice(6));
                   const content = json.choices[0]?.delta?.content;
                   if (content) {
-                    console.log('Sending content:', content);
                     controller.enqueue(encoder.encode(content));
                   }
                 } catch (error) {
                   console.error('Error processing chunk:', error);
-                  console.error('Problematic line:', line);
                 }
               }
             }
@@ -115,7 +117,7 @@ serve(async (req) => {
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   }
