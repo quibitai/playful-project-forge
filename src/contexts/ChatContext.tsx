@@ -1,14 +1,15 @@
 import { createContext, useContext, useReducer, ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { chatReducer } from "@/reducers/chatReducer";
-import { ChatState, Message, Conversation } from "@/types/chat";
+import { ChatState } from "@/types/chat";
+import { Message, MessageRole } from "@/types/messages";
 import { useChatMessages } from "@/hooks/useChatMessages";
 import { useConversations } from "@/hooks/useConversations";
 import { useToast } from "@/hooks/use-toast";
 
 const ChatContext = createContext<{
   state: ChatState;
-  createConversation: (model: string) => Promise<Conversation>;
+  createConversation: (model: string) => Promise<any>;
   sendMessage: (content: string) => Promise<void>;
   loadConversation: (id: string) => Promise<void>;
   loadConversations: () => Promise<void>;
@@ -33,7 +34,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     loadConversation: loadSingleConversation,
   } = useConversations();
 
-  const createConversation = async (model: string): Promise<Conversation> => {
+  const createConversation = async (model: string) => {
     try {
       if (!user) throw new Error("User not authenticated");
       
@@ -74,7 +75,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Ensure messages have the correct role type
       const typedMessages: Message[] = messages.map(msg => ({
         ...msg,
-        role: msg.role as "user" | "assistant" | "system"
+        role: msg.role as MessageRole,
+        user_id: msg.user_id
       }));
       
       dispatch({ type: 'SET_CURRENT_CONVERSATION', payload: conversation });
@@ -126,21 +128,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         user.id,
         state.currentConversation.model,
         state.messages,
-        (id, content) => dispatch({
-          type: 'UPDATE_MESSAGE',
-          payload: { id, content }
-        })
+        (id, content) => {
+          if (id) {
+            dispatch({
+              type: 'UPDATE_MESSAGE',
+              payload: { id, content }
+            });
+          }
+        }
       );
 
-      // Update messages with final versions
-      dispatch({ 
-        type: 'UPDATE_MESSAGE', 
-        payload: { id: finalUserMessage.id!, content: finalUserMessage.content } 
-      });
-      dispatch({ 
-        type: 'UPDATE_MESSAGE', 
-        payload: { id: finalAssistantMessage.id!, content: finalAssistantMessage.content } 
-      });
+      // Update messages with final versions including IDs
+      if (finalUserMessage.id) {
+        dispatch({ 
+          type: 'UPDATE_MESSAGE', 
+          payload: { id: finalUserMessage.id, content: finalUserMessage.content } 
+        });
+      }
+      
+      if (finalAssistantMessage.id) {
+        dispatch({ 
+          type: 'UPDATE_MESSAGE', 
+          payload: { id: finalAssistantMessage.id, content: finalAssistantMessage.content } 
+        });
+      }
     } catch (error) {
       toast({
         title: "Error",
