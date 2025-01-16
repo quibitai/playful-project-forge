@@ -36,18 +36,8 @@ serve(async (req) => {
       throw new Error(error.error?.message || 'Failed to generate response');
     }
 
-    // Create a TransformStream to process the response
-    const transformStream = new TransformStream({
-      async transform(chunk, controller) {
-        controller.enqueue(chunk);
-      },
-    });
-
-    // Pipe the response through the transform stream
-    openAIResponse.body?.pipeTo(transformStream.writable);
-
-    // Return the readable stream with appropriate headers
-    return new Response(transformStream.readable, {
+    // Return the streaming response directly
+    return new Response(openAIResponse.body, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
@@ -55,7 +45,6 @@ serve(async (req) => {
         'Connection': 'keep-alive',
       },
     });
-
   } catch (error) {
     console.error('Error in chat function:', error);
     return new Response(

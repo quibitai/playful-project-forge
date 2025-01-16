@@ -14,11 +14,13 @@ export function useChatMessages() {
   ) => {
     let fullContent = '';
     const decoder = new TextDecoder();
+    const reader = response.body?.getReader();
+    
+    if (!reader) {
+      throw new Error('No reader available');
+    }
 
     try {
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No reader available');
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -37,6 +39,7 @@ export function useChatMessages() {
             const content = parsed.choices[0]?.delta?.content;
             if (content) {
               fullContent += content;
+              console.log('Received content:', content);
 
               // Update the message in the database
               const { error: updateError } = await supabase
@@ -44,7 +47,10 @@ export function useChatMessages() {
                 .update({ content: fullContent })
                 .eq('id', messageId);
 
-              if (updateError) throw updateError;
+              if (updateError) {
+                console.error('Error updating message:', updateError);
+                throw updateError;
+              }
 
               // Update the message in the UI
               onUpdate(messageId, fullContent);
@@ -57,6 +63,8 @@ export function useChatMessages() {
     } catch (error) {
       console.error('Error processing stream:', error);
       throw error;
+    } finally {
+      reader.releaseLock();
     }
   };
 
@@ -103,8 +111,10 @@ export function useChatMessages() {
 
       if (assistantMessageError) throw assistantMessageError;
 
+      console.log('Calling chat function with model:', model);
+
       // Call the chat function with streaming response
-      const response = await supabase.functions.invoke('chat', {
+      const { data: streamResponse, error: streamError } = await supabase.functions.invoke('chat', {
         body: { 
           messages: [...previousMessages, userMessage].map(msg => ({
             role: msg.role,
@@ -117,11 +127,14 @@ export function useChatMessages() {
         }
       });
 
-      if (response.error) throw response.error;
-      if (!response.data) throw new Error('No response from chat function');
+      if (streamError) throw streamError;
+      if (!streamResponse) throw new Error('No response from chat function');
 
+      // Create a new Response object from the stream
+      const response = new Response(streamResponse);
+      
       await handleStreamResponse(
-        response.data,
+        response,
         savedAssistantMessage.id,
         onMessageUpdate
       );
