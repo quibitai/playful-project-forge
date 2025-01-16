@@ -20,7 +20,7 @@ export class ChatService {
 
       if (error) {
         logger.error('Error creating message:', error);
-        throw new ChatError(error);
+        throw new ChatError(error.message);
       }
       if (!data) {
         logger.error('No data returned when creating message');
@@ -45,7 +45,7 @@ export class ChatService {
 
       if (error) {
         logger.error('Error updating message:', error);
-        throw new ChatError(error);
+        throw new ChatError(error.message);
       }
       logger.debug('Message updated successfully');
     } catch (error) {
@@ -64,7 +64,7 @@ export class ChatService {
 
       if (error) {
         logger.error('Error from chat function:', error);
-        throw new ChatError(error);
+        throw new ChatError(error.message);
       }
 
       if (!data?.content) {
