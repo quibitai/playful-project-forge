@@ -4,76 +4,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ModelSelector } from "@/components/chat/ModelSelector";
-import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import { ChatProvider, useChat } from "@/contexts/ChatContext";
 
-interface Message {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
-const Index = () => {
+const ChatInterface = () => {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { state, sendMessage, createConversation, loadConversations } = useChat();
   const [model, setModel] = useState('gpt-4o-mini');
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
   };
 
   const handleSubmit = async (content: string) => {
-    try {
-      setIsLoading(true);
-      const newMessage: Message = { role: 'user', content };
-      setMessages(prev => [...prev, newMessage]);
-
-      const response = await supabase.functions.invoke('chat', {
-        body: { messages: [...messages, newMessage], model },
-      });
-
-      if (response.error) throw response.error;
-
-      const reader = new ReadableStream({
-        async start(controller) {
-          const decoder = new TextDecoder();
-          const chunks = decoder.decode(response.data).split('\n');
-          
-          let assistantMessage = '';
-          for (const chunk of chunks) {
-            if (chunk.startsWith('data: ')) {
-              const data = chunk.slice(6);
-              if (data === '[DONE]') break;
-              
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices[0]?.delta?.content;
-                if (content) {
-                  assistantMessage += content;
-                  controller.enqueue(content);
-                }
-              } catch (e) {
-                console.error('Error parsing chunk:', e);
-              }
-            }
-          }
-          
-          setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
-          controller.close();
-        }
-      });
-
-    } catch (error) {
-      console.error('Error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    if (!state.currentConversation) {
+      const conversation = await createConversation(model);
+      if (!conversation) return;
     }
+    await sendMessage(content);
   };
 
   return (
@@ -95,9 +47,9 @@ const Index = () => {
 
       <main className="flex-1 overflow-y-auto">
         <div className="container mx-auto max-w-4xl">
-          {messages.map((message, index) => (
+          {state.messages.map((message, index) => (
             <ChatMessage
-              key={index}
+              key={message.id || index}
               role={message.role}
               content={message.content}
             />
@@ -107,11 +59,17 @@ const Index = () => {
 
       <footer className="border-t">
         <div className="container mx-auto max-w-4xl">
-          <ChatInput onSubmit={handleSubmit} isLoading={isLoading} />
+          <ChatInput onSubmit={handleSubmit} isLoading={state.isLoading} />
         </div>
       </footer>
     </div>
   );
 };
+
+const Index = () => (
+  <ChatProvider>
+    <ChatInterface />
+  </ChatProvider>
+);
 
 export default Index;

@@ -27,7 +27,10 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        messages,
+        messages: messages.map(({ role, content }: { role: string; content: string }) => ({
+          role,
+          content,
+        })),
         stream: true,
       }),
     });
