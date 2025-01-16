@@ -120,7 +120,7 @@ export function useChatMessages() {
 
       // Call the chat function using the REST endpoint
       const response = await fetch(
-        `${process.env.VITE_SUPABASE_URL || 'https://eosulcourcwvrlgkaiwv.supabase.co'}/functions/v1/chat`,
+        'https://eosulcourcwvrlgkaiwv.supabase.co/functions/v1/chat',
         {
           method: 'POST',
           headers: {
