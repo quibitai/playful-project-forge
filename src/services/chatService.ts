@@ -4,6 +4,13 @@ import { ChatError, handleError } from "@/utils/errorHandling";
 import { logger } from "./loggingService";
 
 /**
+ * Type guard to validate message role
+ */
+function isValidMessageRole(role: string): role is Message['role'] {
+  return ['user', 'assistant', 'system'].includes(role);
+}
+
+/**
  * Service for handling chat-related operations
  */
 export class ChatService {
@@ -17,6 +24,11 @@ export class ChatService {
     user_id: string | null;
   }): Promise<Message> {
     try {
+      // Validate role before inserting
+      if (!isValidMessageRole(messageData.role)) {
+        throw new ChatError(`Invalid message role: ${messageData.role}`);
+      }
+
       const { data, error } = await supabase
         .from('messages')
         .insert(messageData)
@@ -26,7 +38,13 @@ export class ChatService {
       if (error) throw new ChatError(error.message, error.code);
       if (!data) throw new ChatError('Failed to create message');
 
-      return data;
+      // Ensure the role is properly typed in the returned message
+      if (!isValidMessageRole(data.role)) {
+        throw new ChatError(`Invalid role returned from database: ${data.role}`);
+      }
+
+      // Type assertion is safe here because we've validated the role
+      return data as Message;
     } catch (error) {
       logger.error(error, 'createMessage');
       throw handleError(error);
