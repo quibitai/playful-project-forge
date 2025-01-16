@@ -15,7 +15,8 @@ export class MessageService {
 
     if (error) {
       logger.error('Error creating message:', error);
-      throw new Error('Failed to create message: ' + (error as PostgrestError).message);
+      const errorMessage = `Failed to create message: ${error instanceof PostgrestError ? error.message : 'Unknown error'}`;
+      throw new Error(errorMessage);
     }
 
     if (!data) {
@@ -39,7 +40,8 @@ export class MessageService {
 
     if (error) {
       logger.error('Error updating message:', error);
-      throw new Error('Failed to update message: ' + (error as PostgrestError).message);
+      const errorMessage = `Failed to update message: ${error instanceof PostgrestError ? error.message : 'Unknown error'}`;
+      throw new Error(errorMessage);
     }
   }
 
@@ -52,7 +54,6 @@ export class MessageService {
       });
 
       if (response.error) {
-        logger.error('AI response error:', response.error);
         throw new Error('Failed to get AI response');
       }
 
