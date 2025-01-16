@@ -14,7 +14,11 @@ const Auth = () => {
 
   useEffect(() => {
     // Check if user is already authenticated
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Session error:", error.message);
+        return;
+      }
       if (session) {
         navigate("/");
       }
@@ -22,6 +26,8 @@ const Auth = () => {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth event:", event);
+      
       if (event === "SIGNED_IN" && session) {
         navigate("/");
       }
@@ -29,23 +35,10 @@ const Auth = () => {
       if (event === "SIGNED_OUT") {
         navigate("/auth");
       }
-
-      // Handle auth errors
-      if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
-        const { error } = await supabase.auth.getSession();
-        if (error) {
-          const message = getErrorMessage(error);
-          toast({
-            variant: "destructive",
-            title: "Authentication Error",
-            description: message,
-          });
-        }
-      }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+  }, [navigate]);
 
   const getErrorMessage = (error: AuthError) => {
     if (error instanceof AuthApiError) {
