@@ -97,7 +97,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // Create a new message for the assistant's response
       const assistantMessage: Message = {
-        role: 'assistant',
+        role: 'assistant' as const,
         content: '',
         conversation_id: state.currentConversation.id,
         user_id: null,
@@ -112,51 +112,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (insertError) throw insertError;
 
-      // Add the message to the UI
-      dispatch({ type: 'ADD_MESSAGE', payload: savedMessage });
+      // Add the message to the UI with the correct type
+      dispatch({ 
+        type: 'ADD_MESSAGE', 
+        payload: { ...savedMessage, role: 'assistant' as const } 
+      });
 
       // Process streaming response
       const decoder = new TextDecoder();
       let fullContent = '';
 
       try {
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('No reader available');
+        // Get the response data as a string
+        const responseData = await response.text();
+        const lines = responseData.split('\n');
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices[0]?.delta?.content;
+              if (content) {
+                fullContent += content;
+                // Update the message in the database
+                const { error: updateError } = await supabase
+                  .from('messages')
+                  .update({ content: fullContent })
+                  .eq('id', savedMessage.id);
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
+                if (updateError) throw updateError;
 
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices[0]?.delta?.content;
-                if (content) {
-                  fullContent += content;
-                  // Update the message in the database
-                  const { error: updateError } = await supabase
-                    .from('messages')
-                    .update({ content: fullContent })
-                    .eq('id', savedMessage.id);
-
-                  if (updateError) throw updateError;
-
-                  // Update the message in the UI
-                  dispatch({
-                    type: 'UPDATE_MESSAGE',
-                    payload: { id: savedMessage.id, content: fullContent }
-                  });
-                }
-              } catch (e) {
-                console.error('Error parsing chunk:', e);
+                // Update the message in the UI
+                dispatch({
+                  type: 'UPDATE_MESSAGE',
+                  payload: { id: savedMessage.id, content: fullContent }
+                });
               }
+            } catch (e) {
+              console.error('Error parsing chunk:', e);
             }
           }
         }
