@@ -42,37 +42,54 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
 
-    // Create a TransformStream to process the response
-    const transformStream = new TransformStream({
-      async transform(chunk, controller) {
-        const text = new TextDecoder().decode(chunk);
-        const lines = text.split('\n');
+    if (!openAIResponse.body) {
+      throw new Error('No response body from OpenAI');
+    }
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              return;
+    // Set up the response with appropriate headers for streaming
+    const responseStream = new ReadableStream({
+      async start(controller) {
+        const reader = openAIResponse.body.getReader();
+        const decoder = new TextDecoder();
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.close();
+              break;
             }
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content || '';
-              if (content) {
-                controller.enqueue(line + '\n');
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.trim() === '') continue;
+              if (line.trim() === 'data: [DONE]') {
+                controller.close();
+                return;
               }
-            } catch (error) {
-              console.error('Error parsing chunk:', error);
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = line.slice(6);
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices[0]?.delta?.content;
+                  if (content) {
+                    controller.enqueue(line + '\n');
+                  }
+                } catch (error) {
+                  console.error('Error parsing chunk:', error);
+                  continue;
+                }
+              }
             }
           }
+        } catch (error) {
+          console.error('Error processing stream:', error);
+          controller.error(error);
         }
       },
     });
-
-    // Pipe the response through the transform stream
-    const responseStream = openAIResponse.body
-      .pipeThrough(new TextDecoderStream())
-      .pipeThrough(transformStream)
-      .pipeThrough(new TextEncoderStream());
 
     return new Response(responseStream, {
       headers: {
@@ -82,6 +99,7 @@ serve(async (req) => {
         'Connection': 'keep-alive',
       },
     });
+
   } catch (error) {
     console.error('Error in chat function:', error);
     return new Response(
