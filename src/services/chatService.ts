@@ -16,7 +16,7 @@ export class ChatService {
       .single();
 
     if (error) {
-      throw new Error(error.message || 'Failed to create message');
+      throw new Error(error instanceof PostgrestError ? error.message : 'Failed to create message');
     }
 
     if (!data) {
@@ -33,7 +33,7 @@ export class ChatService {
       .eq('id', messageId);
 
     if (error) {
-      throw new Error(error.message || 'Failed to update message');
+      throw new Error(error instanceof PostgrestError ? error.message : 'Failed to update message');
     }
   }
 

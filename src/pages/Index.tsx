@@ -1,31 +1,42 @@
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import { useEffect, useState } from "react";
-import { ChatProvider, useChat } from "@/contexts/ChatContext";
+import { useChat } from "@/contexts/ChatContext";
+import { useToast } from "@/hooks/use-toast";
 
 const ChatInterface = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { state, sendMessage, createConversation, loadConversations } = useChat();
   const [model, setModel] = useState('gpt-4o-mini');
+  const { toast } = useToast();
 
   useEffect(() => {
-    loadConversations();
+    loadConversations().catch(error => {
+      toast({
+        title: "Error",
+        description: "Failed to load conversations",
+        variant: "destructive",
+      });
+    });
   }, []);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   const handleSubmit = async (content: string) => {
-    if (!state.currentConversation) {
-      const conversation = await createConversation(model);
-      if (!conversation) return;
+    try {
+      if (!state.currentConversation) {
+        const conversation = await createConversation(model);
+        if (!conversation) return;
+      }
+      await sendMessage(content);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send message",
+        variant: "destructive",
+      });
     }
-    await sendMessage(content);
   };
 
   return (
@@ -37,9 +48,9 @@ const ChatInterface = () => {
         </div>
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            {user ? `Signed in as ${user.email}` : 'Loading...'}
+            {user?.email ? `Signed in as ${user.email}` : 'Loading...'}
           </p>
-          <Button onClick={handleSignOut} variant="outline">
+          <Button onClick={signOut} variant="outline">
             Sign Out
           </Button>
         </div>
@@ -50,8 +61,10 @@ const ChatInterface = () => {
           {state.messages.map((message, index) => (
             <ChatMessage
               key={message.id || index}
+              id={message.id}
               role={message.role}
               content={message.content}
+              reactions={message.reactions}
             />
           ))}
         </div>
@@ -67,9 +80,7 @@ const ChatInterface = () => {
 };
 
 const Index = () => (
-  <ChatProvider>
-    <ChatInterface />
-  </ChatProvider>
+  <ChatInterface />
 );
 
 export default Index;
