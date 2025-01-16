@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Message, MessageData, AIResponse, MessageRole } from "@/types/messages";
-import { PostgrestError } from "@supabase/supabase-js";
 import { logger } from "@/services/loggingService";
 
 export class MessageService {
@@ -15,8 +14,7 @@ export class MessageService {
 
     if (error) {
       logger.error('Error creating message:', error);
-      const errorMessage = `Failed to create message: ${error instanceof PostgrestError ? error.message : 'Unknown error'}`;
-      throw new Error(errorMessage);
+      throw new Error('Failed to create message');
     }
 
     if (!data) {
@@ -40,8 +38,7 @@ export class MessageService {
 
     if (error) {
       logger.error('Error updating message:', error);
-      const errorMessage = `Failed to update message: ${error instanceof PostgrestError ? error.message : 'Unknown error'}`;
-      throw new Error(errorMessage);
+      throw new Error('Failed to update message');
     }
   }
 
@@ -54,6 +51,7 @@ export class MessageService {
       });
 
       if (response.error) {
+        logger.error('AI response error:', response.error);
         throw new Error('Failed to get AI response');
       }
 
