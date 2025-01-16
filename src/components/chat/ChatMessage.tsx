@@ -9,10 +9,13 @@ interface ChatMessageProps {
   content: string;
 }
 
-// Define proper types for the code component props
-interface CodeProps extends ComponentPropsWithoutRef<'code'> {
+// Define proper types for the markdown components
+type MarkdownComponentProps = {
+  node?: any;
   inline?: boolean;
-}
+  className?: string;
+  children?: React.ReactNode;
+} & ComponentPropsWithoutRef<any>;
 
 export const ChatMessage = ({ role, content }: ChatMessageProps) => {
   return (
@@ -35,49 +38,62 @@ export const ChatMessage = ({ role, content }: ChatMessageProps) => {
           <ReactMarkdown
             rehypePlugins={[rehypeHighlight, rehypeRaw]}
             components={{
-              pre: ({ node, ...props }) => (
+              pre: ({ node, ...props }: MarkdownComponentProps) => (
                 <div className="relative group">
                   <pre {...props} className="rounded-lg bg-muted p-4 overflow-x-auto" />
                 </div>
               ),
-              code: ({ inline, ...props }: CodeProps) => (
-                inline ? 
-                <code {...props} className="rounded bg-muted px-1 py-0.5" /> :
-                <code {...props} className="text-sm" />
-              ),
-              p: ({ node, ...props }) => (
+              code: ({ inline, className, children, ...props }: MarkdownComponentProps) => {
+                const match = /language-(\w+)/.exec(className || '');
+                return inline ? (
+                  <code {...props} className="rounded bg-muted px-1 py-0.5">
+                    {children}
+                  </code>
+                ) : (
+                  <code
+                    {...props}
+                    className={cn(
+                      "text-sm block",
+                      match ? `language-${match[1]}` : ''
+                    )}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+              p: ({ node, ...props }: MarkdownComponentProps) => (
                 <p {...props} className="mb-4 last:mb-0" />
               ),
-              ul: ({ node, ...props }) => (
+              ul: ({ node, ...props }: MarkdownComponentProps) => (
                 <ul {...props} className="list-disc pl-4 mb-4 last:mb-0" />
               ),
-              ol: ({ node, ...props }) => (
+              ol: ({ node, ...props }: MarkdownComponentProps) => (
                 <ol {...props} className="list-decimal pl-4 mb-4 last:mb-0" />
               ),
-              li: ({ node, ...props }) => (
+              li: ({ node, ...props }: MarkdownComponentProps) => (
                 <li {...props} className="mb-1 last:mb-0" />
               ),
-              a: ({ node, ...props }) => (
+              a: ({ node, ...props }: MarkdownComponentProps) => (
                 <a {...props} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer" />
               ),
-              blockquote: ({ node, ...props }) => (
+              blockquote: ({ node, ...props }: MarkdownComponentProps) => (
                 <blockquote {...props} className="border-l-4 border-muted pl-4 italic" />
               ),
-              hr: ({ node, ...props }) => (
+              hr: ({ node, ...props }: MarkdownComponentProps) => (
                 <hr {...props} className="my-4 border-muted" />
               ),
-              img: ({ node, ...props }) => (
+              img: ({ node, ...props }: MarkdownComponentProps) => (
                 <img {...props} className="rounded-lg max-w-full h-auto" />
               ),
-              table: ({ node, ...props }) => (
+              table: ({ node, ...props }: MarkdownComponentProps) => (
                 <div className="overflow-x-auto">
                   <table {...props} className="min-w-full divide-y divide-border" />
                 </div>
               ),
-              th: ({ node, ...props }) => (
+              th: ({ node, ...props }: MarkdownComponentProps) => (
                 <th {...props} className="px-4 py-2 text-left font-medium" />
               ),
-              td: ({ node, ...props }) => (
+              td: ({ node, ...props }: MarkdownComponentProps) => (
                 <td {...props} className="px-4 py-2" />
               ),
             }}
