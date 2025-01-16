@@ -19,6 +19,18 @@ serve(async (req) => {
 
     const { messages, model = 'gpt-4o-mini' } = await req.json();
 
+    const systemMessage = {
+      role: 'system',
+      content: `You are a helpful AI assistant. You can use markdown formatting in your responses:
+- Use **bold** for emphasis
+- Create \`code blocks\` for code
+- Use bullet points and numbered lists
+- Include tables when presenting structured data
+- Use > for blockquotes
+- Format code with syntax highlighting by specifying the language
+Please ensure your responses are well-formatted and easy to read.`
+    };
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -27,10 +39,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        messages: messages.map(({ role, content }: { role: string; content: string }) => ({
-          role,
-          content,
-        })),
+        messages: [systemMessage, ...messages],
         stream: true,
       }),
     });
