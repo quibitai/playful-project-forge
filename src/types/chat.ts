@@ -39,5 +39,6 @@ export type ChatAction =
   | { type: 'ADD_CONVERSATION'; payload: Conversation }
   | { type: 'SET_MESSAGES'; payload: Message[] }
   | { type: 'ADD_MESSAGE'; payload: Message }
+  | { type: 'UPDATE_MESSAGE'; payload: { id: string; content: string } }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null };

@@ -95,46 +95,75 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
 
+      // Create a new message for the assistant's response
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        conversation_id: state.currentConversation.id,
+        user_id: null,
+      };
+
+      // Insert the initial empty message
+      const { data: savedMessage, error: insertError } = await supabase
+        .from('messages')
+        .insert([assistantMessage])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Add the message to the UI
+      dispatch({ type: 'ADD_MESSAGE', payload: savedMessage });
+
       // Process streaming response
-      const reader = new ReadableStream({
-        async start(controller) {
-          const decoder = new TextDecoder();
-          const chunks = decoder.decode(response.data).split('\n');
-          
-          let assistantMessage = '';
-          for (const chunk of chunks) {
-            if (chunk.startsWith('data: ')) {
-              const data = chunk.slice(6);
-              if (data === '[DONE]') break;
-              
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      try {
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No reader available');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
               try {
                 const parsed = JSON.parse(data);
                 const content = parsed.choices[0]?.delta?.content;
                 if (content) {
-                  assistantMessage += content;
-                  controller.enqueue(content);
+                  fullContent += content;
+                  // Update the message in the database
+                  const { error: updateError } = await supabase
+                    .from('messages')
+                    .update({ content: fullContent })
+                    .eq('id', savedMessage.id);
+
+                  if (updateError) throw updateError;
+
+                  // Update the message in the UI
+                  dispatch({
+                    type: 'UPDATE_MESSAGE',
+                    payload: { id: savedMessage.id, content: fullContent }
+                  });
                 }
               } catch (e) {
                 console.error('Error parsing chunk:', e);
               }
             }
           }
-          
-          // Save assistant message
-          const { error: assistantError } = await supabase
-            .from('messages')
-            .insert([{
-              role: 'assistant',
-              content: assistantMessage,
-              conversation_id: state.currentConversation.id,
-              user_id: null,
-            }]);
-
-          if (assistantError) throw assistantError;
-          
-          controller.close();
         }
-      });
+      } catch (error) {
+        console.error('Error processing stream:', error);
+        throw error;
+      }
 
     } catch (error) {
       toast({

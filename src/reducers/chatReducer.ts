@@ -16,6 +16,15 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, messages: action.payload };
     case 'ADD_MESSAGE':
       return { ...state, messages: [...state.messages, action.payload] };
+    case 'UPDATE_MESSAGE':
+      return {
+        ...state,
+        messages: state.messages.map(message =>
+          message.id === action.payload.id
+            ? { ...message, content: action.payload.content }
+            : message
+        ),
+      };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'SET_ERROR':
