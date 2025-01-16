@@ -7,8 +7,9 @@ export interface Message {
   id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  conversation_id?: string;
+  conversation_id: string;  // Changed from optional to required
   created_at?: string;
+  user_id?: string;  // Added to match database schema
 }
 
 export interface Conversation {
@@ -17,6 +18,7 @@ export interface Conversation {
   model: string;
   created_at: string;
   updated_at: string;
+  user_id: string;  // Added to match database schema
 }
 
 interface ChatState {
@@ -163,6 +165,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         role: 'user',
         content,
         conversation_id: state.currentConversation.id,
+        user_id: user.id,  // Added user_id
       };
 
       const { error: insertError } = await supabase
@@ -215,6 +218,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               role: 'assistant',
               content: assistantMessage,
               conversation_id: state.currentConversation.id,
+              user_id: null,  // AI messages don't have a user_id
             }]);
 
           if (assistantError) throw assistantError;
