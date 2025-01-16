@@ -128,33 +128,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
 
       // Call the chat function with streaming response
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messages: [...state.messages, userMessage].map(msg => ({
-              role: msg.role,
-              content: msg.content
-            })),
-            model: state.currentConversation.model,
-          }),
-        }
-      );
+      const { data: stream, error: functionError } = await supabase.functions.invoke('chat', {
+        body: { 
+          messages: [...state.messages, userMessage].map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          model: state.currentConversation.model,
+        },
+      }, {
+        responseType: 'stream',
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to get response from chat function');
-      }
+      if (functionError) throw functionError;
+      if (!stream) throw new Error('No response from chat function');
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body reader available');
-      }
-
+      const reader = stream.getReader();
       let fullContent = '';
       const decoder = new TextDecoder();
 
