@@ -114,13 +114,17 @@ export function useChatMessages() {
 
       console.log('Calling chat function with model:', model);
 
-      // Call the chat function
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      // Call the chat function using the REST endpoint
       const response = await fetch(
-        `${supabase.functions.getUrl('chat')}`,
+        `${process.env.SUPABASE_URL}/functions/v1/chat`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${supabase.auth.getSession()?.access_token}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
