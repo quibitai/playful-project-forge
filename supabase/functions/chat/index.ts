@@ -5,12 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req) => {
-  console.log('Received request:', req.method);
-
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
@@ -39,11 +36,9 @@ serve(async (req) => {
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
         messages: messages.map(({ role, content }) => ({ role, content })),
-        stream: false, // Disabled streaming
+        stream: false,
       }),
     });
-
-    console.log('OpenAI response status:', openAIResponse.status);
 
     if (!openAIResponse.ok) {
       const error = await openAIResponse.json();
@@ -58,6 +53,7 @@ serve(async (req) => {
       JSON.stringify({ content }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
       }
     );
 

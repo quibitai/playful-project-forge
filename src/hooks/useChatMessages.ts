@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Message } from "@/types/chat";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ChatService } from "@/services/chatService";
 import { logger } from "@/services/loggingService";
@@ -36,29 +35,13 @@ export function useChatMessages() {
         user_id: null,
       });
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No active session');
+      const aiResponse = await ChatService.sendMessageToAI(
+        [...previousMessages, userMessage],
+        model
+      );
 
-      logger.debug('Invoking chat function...');
-      const { data, error } = await supabase.functions.invoke('chat', {
-        body: {
-          messages: [...previousMessages, userMessage],
-          model,
-        }
-      });
-
-      if (error) {
-        logger.error('Chat function error:', error);
-        throw error;
-      }
-
-      if (!data?.content) {
-        throw new Error('No response content received');
-      }
-
-      logger.debug('Updating message with response:', data.content);
-      await ChatService.updateMessage(assistantMessage.id, data.content);
-      onMessageUpdate(assistantMessage.id, data.content);
+      await ChatService.updateMessage(assistantMessage.id, aiResponse);
+      onMessageUpdate(assistantMessage.id, aiResponse);
 
       return [userMessage, assistantMessage];
     } catch (error) {

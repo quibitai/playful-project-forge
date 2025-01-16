@@ -40,4 +40,26 @@ export class ChatService {
       throw error;
     }
   }
+
+  static async sendMessageToAI(messages: Message[], model: string): Promise<string> {
+    try {
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: { messages, model },
+      });
+
+      if (error) {
+        logger.error(error, 'sendMessageToAI');
+        throw new ChatError(error.message);
+      }
+
+      if (!data?.content) {
+        throw new ChatError('No response content received');
+      }
+
+      return data.content;
+    } catch (error) {
+      logger.error(error, 'sendMessageToAI');
+      throw error;
+    }
+  }
 }
