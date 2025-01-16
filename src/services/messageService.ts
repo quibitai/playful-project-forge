@@ -22,7 +22,6 @@ export class MessageService {
       throw new Error('No data returned from message creation');
     }
 
-    // Ensure the role is properly typed
     return {
       ...data,
       role: data.role as MessageRole,
