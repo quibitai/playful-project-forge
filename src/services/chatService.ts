@@ -1,18 +1,28 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Message } from "@/types/chat";
+import { Message, Conversation } from "@/types/chat";
 
 /**
  * Service class for handling chat-related operations
  */
 export class ChatService {
-  private static readonly FUNCTIONS_ENDPOINT = 'https://eosulcourcwvrlgkaiwv.supabase.co/functions/v1/chat';
+  private static readonly SUPABASE_URL = 'https://eosulcourcwvrlgkaiwv.supabase.co';
 
   /**
-   * Sends a message to the chat API and handles the streaming response
-   * @param content The message content
-   * @param messageId The ID of the message to update with the response
-   * @param session The current user session
-   * @param onUpdate Callback function to update the message content
+   * Creates a new message in the database
+   */
+  static async createMessage(message: Partial<Message>): Promise<Message> {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert([message])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Handles streaming response from the chat API
    */
   static async handleStreamResponse(
     response: Response,
@@ -20,9 +30,7 @@ export class ChatService {
     onUpdate: (id: string, content: string) => void
   ): Promise<void> {
     const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No reader available');
-    }
+    if (!reader) throw new Error('No reader available');
 
     const decoder = new TextDecoder();
     let fullContent = '';
@@ -67,16 +75,13 @@ export class ChatService {
 
   /**
    * Sends a chat message to the API
-   * @param messages Previous messages in the conversation
-   * @param model The AI model to use
-   * @param accessToken The user's access token
    */
   static async sendChatMessage(
     messages: Message[],
     model: string,
     accessToken: string
   ): Promise<Response> {
-    const response = await fetch(this.FUNCTIONS_ENDPOINT, {
+    const response = await fetch(`${this.SUPABASE_URL}/functions/v1/chat`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,

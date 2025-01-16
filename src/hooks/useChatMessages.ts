@@ -33,36 +33,20 @@ export function useChatMessages() {
       setIsLoading(true);
       
       // Create and save the user's message
-      const userMessage: Message = {
+      const userMessage = await ChatService.createMessage({
         role: 'user',
         content,
         conversation_id: conversationId,
         user_id: userId,
-      };
-
-      const { data: savedUserMessage, error: userMessageError } = await supabase
-        .from('messages')
-        .insert([userMessage])
-        .select()
-        .single();
-
-      if (userMessageError) throw userMessageError;
+      });
 
       // Create a placeholder for the assistant's response
-      const assistantMessage: Message = {
+      const assistantMessage = await ChatService.createMessage({
         role: 'assistant',
         content: '',
         conversation_id: conversationId,
         user_id: null,
-      };
-
-      const { data: savedAssistantMessage, error: assistantMessageError } = await supabase
-        .from('messages')
-        .insert([assistantMessage])
-        .select()
-        .single();
-
-      if (assistantMessageError) throw assistantMessageError;
+      });
 
       // Get the current session
       const { data: { session } } = await supabase.auth.getSession();
@@ -76,11 +60,11 @@ export function useChatMessages() {
 
       await ChatService.handleStreamResponse(
         response,
-        savedAssistantMessage.id,
+        assistantMessage.id,
         onMessageUpdate
       );
 
-      return [savedUserMessage, savedAssistantMessage];
+      return [userMessage, assistantMessage];
     } catch (error) {
       console.error('Error in sendMessage:', error);
       toast({
