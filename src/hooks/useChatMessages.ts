@@ -6,16 +6,10 @@ import { ChatService } from "@/services/chatService";
 import { logger } from "@/services/loggingService";
 import { handleError } from "@/utils/errorHandling";
 
-/**
- * Custom hook for managing chat messages
- */
 export function useChatMessages() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  /**
-   * Sends a new message and handles the response
-   */
   const sendMessage = async (
     content: string,
     conversationId: string,
@@ -45,17 +39,26 @@ export function useChatMessages() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No active session');
 
-      const response = await ChatService.sendChatMessage(
-        [...previousMessages, userMessage],
-        model,
-        session.access_token
-      );
+      logger.debug('Invoking chat function...');
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: {
+          messages: [...previousMessages, userMessage],
+          model,
+        }
+      });
 
-      await ChatService.handleStreamResponse(
-        response,
-        assistantMessage.id,
-        onMessageUpdate
-      );
+      if (error) {
+        logger.error('Chat function error:', error);
+        throw error;
+      }
+
+      if (!data?.content) {
+        throw new Error('No response content received');
+      }
+
+      logger.debug('Updating message with response:', data.content);
+      await ChatService.updateMessage(assistantMessage.id, data.content);
+      onMessageUpdate(assistantMessage.id, data.content);
 
       return [userMessage, assistantMessage];
     } catch (error) {
