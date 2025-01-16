@@ -136,7 +136,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })),
           model: state.currentConversation.model,
         },
-      }, {
         responseType: 'stream',
       });
 
