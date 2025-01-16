@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Message, MessageData, AIResponse, MessageRole } from "@/types/messages";
 import { logger } from "@/services/loggingService";
+import { PostgrestError } from "@supabase/supabase-js";
 
 export class MessageService {
   static async createMessage(messageData: MessageData): Promise<Message> {
@@ -12,8 +13,8 @@ export class MessageService {
       .single();
 
     if (error) {
-      logger.error('Error creating message:', error);
-      throw new Error('Failed to create message');
+      logger.error('Error creating message:', error.message);
+      throw new Error(`Failed to create message: ${error.message}`);
     }
 
     if (!data) {
@@ -37,8 +38,8 @@ export class MessageService {
       .single();
 
     if (error) {
-      logger.error('Error updating message:', error);
-      throw new Error('Failed to update message');
+      logger.error('Error updating message:', error.message);
+      throw new Error(`Failed to update message: ${error.message}`);
     }
 
     if (!data) {
@@ -57,19 +58,21 @@ export class MessageService {
       });
 
       if (response.error) {
-        logger.error('AI function error:', response.error);
+        logger.error('AI function error:', typeof response.error === 'string' ? response.error : JSON.stringify(response.error));
         throw new Error('Failed to get AI response');
       }
 
       if (!response.data?.data?.content) {
-        logger.error('Invalid AI response format:', response);
-        throw new Error('Invalid response format from AI');
+        const errorMsg = 'Invalid response format from AI';
+        logger.error(errorMsg, JSON.stringify(response));
+        throw new Error(errorMsg);
       }
 
       logger.debug('AI response received successfully');
       return response.data.data.content;
     } catch (error) {
-      logger.error('Error in sendMessageToAI:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error in sendMessageToAI';
+      logger.error('Error in sendMessageToAI:', errorMessage);
       throw error;
     }
   }
