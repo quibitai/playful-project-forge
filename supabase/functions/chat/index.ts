@@ -30,7 +30,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
-        messages,
+        messages: messages.map(({ role, content }) => ({ role, content })),
         stream: true,
       }),
     });
@@ -41,7 +41,15 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
 
+    // Log the response headers to debug streaming issues
+    console.log('OpenAI Response Headers:', Object.fromEntries(openAIResponse.headers.entries()));
     console.log('Streaming response from OpenAI...');
+
+    // Ensure we're getting a readable stream
+    if (!openAIResponse.body) {
+      throw new Error('No response body from OpenAI');
+    }
+
     return new Response(openAIResponse.body, {
       headers: {
         ...corsHeaders,
