@@ -123,9 +123,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       let fullContent = '';
 
       try {
-        // Get the response data as a string
-        const responseData = await response.text();
-        const lines = responseData.split('\n');
+        if (response.error) throw new Error(response.error.message);
+        
+        // Get the response data
+        const responseText = new TextDecoder().decode(response.data);
+        const lines = responseText.split('\n');
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
