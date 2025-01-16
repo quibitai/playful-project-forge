@@ -6,63 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStream> {
-  const reader = stream.getReader();
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            console.log('Stream complete');
-            controller.close();
-            break;
-          }
-
-          const chunk = decoder.decode(value);
-          console.log('Received chunk:', chunk);
-          
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.trim() === '') continue;
-            
-            if (line.includes('[DONE]')) {
-              console.log('Received [DONE] signal');
-              controller.close();
-              return;
-            }
-
-            if (line.startsWith('data: ')) {
-              try {
-                const json = JSON.parse(line.slice(6));
-                const content = json.choices[0]?.delta?.content;
-                if (content) {
-                  console.log('Processing content:', content);
-                  controller.enqueue(encoder.encode(content));
-                }
-              } catch (error) {
-                console.error('Error parsing JSON:', error);
-                console.error('Problematic line:', line);
-                continue;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Stream processing error:', error);
-        controller.error(error);
-      } finally {
-        reader.releaseLock();
-      }
-    }
-  });
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -106,8 +49,41 @@ serve(async (req) => {
       throw new Error('No response body from OpenAI');
     }
 
-    // Process and transform the OpenAI stream
-    const processedStream = await processOpenAIStream(openAIResponse.body);
+    // Create a new TransformStream to process the response
+    const transformStream = new TransformStream({
+      async transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          if (line === 'data: [DONE]') {
+            console.log('Stream complete');
+            return;
+          }
+
+          if (line.startsWith('data: ')) {
+            try {
+              const json = JSON.parse(line.slice(6));
+              const content = json.choices[0]?.delta?.content;
+              if (content) {
+                console.log('Sending content:', content);
+                controller.enqueue(new TextEncoder().encode(content));
+              }
+            } catch (error) {
+              console.error('Error processing chunk:', error);
+              console.error('Problematic line:', line);
+            }
+          }
+        }
+      }
+    });
+
+    // Pipe the response through our transform stream
+    const processedStream = openAIResponse.body
+      .pipeThrough(new TextDecoderStream())
+      .pipeThrough(transformStream)
+      .pipeThrough(new TextEncoderStream());
 
     return new Response(processedStream, {
       headers: {
