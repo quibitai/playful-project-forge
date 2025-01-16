@@ -19,8 +19,7 @@ serve(async (req) => {
     }
 
     const { messages, model = 'gpt-4o-mini' } = await req.json();
-    console.log('Received request with model:', model);
-    console.log('Messages:', messages);
+    console.log('Processing chat request:', { model, messageCount: messages.length });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -41,15 +40,8 @@ serve(async (req) => {
       throw new Error(error.error?.message || 'Failed to generate response');
     }
 
-    // Transform the response into a readable stream
-    const transformStream = new TransformStream({
-      transform(chunk, controller) {
-        const text = new TextDecoder().decode(chunk);
-        controller.enqueue(text);
-      },
-    });
-
-    return new Response(response.body?.pipeThrough(transformStream), {
+    // Return the stream directly without transformation
+    return new Response(response.body, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',

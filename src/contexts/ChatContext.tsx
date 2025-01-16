@@ -87,7 +87,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       // Create and save the user's message
       const userMessage: Message = {
-        role: 'user' as const,
+        role: 'user',
         content,
         conversation_id: state.currentConversation.id,
         user_id: user.id,
@@ -108,13 +108,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // Create a new message for the assistant's response
       const assistantMessage: Message = {
-        role: 'assistant' as const,
+        role: 'assistant',
         content: '',
         conversation_id: state.currentConversation.id,
         user_id: null,
       };
 
-      // Insert the initial empty message
       const { data: savedAssistantMessage, error: assistantMessageError } = await supabase
         .from('messages')
         .insert([assistantMessage])
@@ -123,13 +122,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (assistantMessageError) throw assistantMessageError;
 
-      // Add the message to the UI
       dispatch({ 
         type: 'ADD_MESSAGE', 
         payload: { ...savedAssistantMessage, role: 'assistant' as const } 
       });
 
-      // Call the chat function with streaming
+      // Call the chat function
       const response = await supabase.functions.invoke('chat', {
         body: { 
           messages: [...state.messages, userMessage].map(msg => ({
