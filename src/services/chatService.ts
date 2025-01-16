@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/types/chat";
-import { ChatError } from "@/utils/errorHandling";
 import { logger } from "./loggingService";
 
 export class ChatService {
@@ -20,18 +19,18 @@ export class ChatService {
 
       if (error) {
         logger.error('Error creating message:', error);
-        throw new ChatError(error.message);
+        throw new Error(error.message);
       }
       if (!data) {
         logger.error('No data returned when creating message');
-        throw new ChatError('Failed to create message');
+        throw new Error('Failed to create message');
       }
 
       logger.debug('Message created successfully:', data);
       return data as Message;
     } catch (error) {
       logger.error('Error in createMessage:', error);
-      throw error instanceof ChatError ? error : new ChatError(error as Error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to create message');
     }
   }
 
@@ -45,12 +44,12 @@ export class ChatService {
 
       if (error) {
         logger.error('Error updating message:', error);
-        throw new ChatError(error.message);
+        throw new Error(error.message);
       }
       logger.debug('Message updated successfully');
     } catch (error) {
       logger.error('Error in updateMessage:', error);
-      throw error instanceof ChatError ? error : new ChatError(error as Error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to update message');
     }
   }
 
@@ -64,19 +63,19 @@ export class ChatService {
 
       if (error) {
         logger.error('Error from chat function:', error);
-        throw new ChatError(error.message);
+        throw new Error(error.message);
       }
 
       if (!data?.content) {
         logger.error('No content received from chat function');
-        throw new ChatError('No response content received');
+        throw new Error('No response content received');
       }
 
       logger.debug('AI response received successfully');
       return data.content;
     } catch (error) {
       logger.error('Error in sendMessageToAI:', error);
-      throw error instanceof ChatError ? error : new ChatError(error as Error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to send message to AI');
     }
   }
 }

@@ -3,7 +3,6 @@ import { Message } from "@/types/chat";
 import { useToast } from "@/hooks/use-toast";
 import { ChatService } from "@/services/chatService";
 import { logger } from "@/services/loggingService";
-import { ChatError, handleError } from "@/utils/errorHandling";
 
 export function useChatMessages() {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,16 +47,15 @@ export function useChatMessages() {
 
       return [userMessage, assistantMessage];
     } catch (error) {
-      const handledError = handleError(error);
-      logger.error('Error in sendMessage:', handledError);
+      logger.error('Error in sendMessage:', error);
       
       toast({
         title: "Error",
-        description: handledError.message,
+        description: error instanceof Error ? error.message : 'An error occurred while sending the message',
         variant: "destructive",
       });
       
-      throw handledError;
+      throw error;
     } finally {
       setIsLoading(false);
     }
