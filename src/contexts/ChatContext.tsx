@@ -86,14 +86,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const { response, userMessage } = await sendMessageOp(
+      // Create and save the user's message
+      const userMessage: Message = {
+        role: 'user' as const,
         content,
-        state.currentConversation,
-        user,
-        state.messages
-      );
+        conversation_id: state.currentConversation.id,
+        user_id: user.id,
+      };
 
-      dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
+      const { data: savedUserMessage, error: userMessageError } = await supabase
+        .from('messages')
+        .insert([userMessage])
+        .select()
+        .single();
+
+      if (userMessageError) throw userMessageError;
+
+      dispatch({ 
+        type: 'ADD_MESSAGE', 
+        payload: { ...savedUserMessage, role: 'user' as const } 
+      });
 
       // Create a new message for the assistant's response
       const assistantMessage: Message = {
@@ -104,66 +116,86 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
 
       // Insert the initial empty message
-      const { data: savedMessage, error: insertError } = await supabase
+      const { data: savedAssistantMessage, error: assistantMessageError } = await supabase
         .from('messages')
         .insert([assistantMessage])
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (assistantMessageError) throw assistantMessageError;
 
-      // Add the message to the UI with the correct type
+      // Add the message to the UI
       dispatch({ 
         type: 'ADD_MESSAGE', 
-        payload: { ...savedMessage, role: 'assistant' as const } 
+        payload: { ...savedAssistantMessage, role: 'assistant' as const } 
       });
 
+      // Call the chat function with streaming
+      const response = await supabase.functions.invoke('chat', {
+        body: { 
+          messages: [...state.messages, userMessage].map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          model: state.currentConversation.model,
+        },
+      });
+
+      if (response.error) throw response.error;
+
       // Process streaming response
-      const decoder = new TextDecoder();
       let fullContent = '';
+      const reader = new ReadableStreamDefaultReader(response.data);
+      const decoder = new TextDecoder();
 
       try {
-        if (response.error) throw new Error(response.error.message);
-        
-        // Get the response data
-        const responseText = new TextDecoder().decode(response.data);
-        const lines = responseText.split('\n');
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
 
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content;
-              if (content) {
-                fullContent += content;
-                // Update the message in the database
-                const { error: updateError } = await supabase
-                  .from('messages')
-                  .update({ content: fullContent })
-                  .eq('id', savedMessage.id);
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
 
-                if (updateError) throw updateError;
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices[0]?.delta?.content;
+                if (content) {
+                  fullContent += content;
+                  
+                  // Update the message in the database
+                  const { error: updateError } = await supabase
+                    .from('messages')
+                    .update({ content: fullContent })
+                    .eq('id', savedAssistantMessage.id);
 
-                // Update the message in the UI
-                dispatch({
-                  type: 'UPDATE_MESSAGE',
-                  payload: { id: savedMessage.id, content: fullContent }
-                });
+                  if (updateError) throw updateError;
+
+                  // Update the message in the UI
+                  dispatch({
+                    type: 'UPDATE_MESSAGE',
+                    payload: { id: savedAssistantMessage.id, content: fullContent }
+                  });
+                }
+              } catch (e) {
+                console.error('Error parsing chunk:', e);
               }
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
             }
           }
         }
       } catch (error) {
         console.error('Error processing stream:', error);
         throw error;
+      } finally {
+        reader.releaseLock();
       }
 
     } catch (error) {
+      console.error('Error in sendMessage:', error);
       toast({
         title: "Error",
         description: "Failed to send message",
