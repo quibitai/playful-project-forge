@@ -3,10 +3,11 @@ import { Message } from "@/types/chat";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ChatService } from "@/services/chatService";
+import { logger } from "@/services/loggingService";
+import { handleError } from "@/utils/errorHandling";
 
 /**
  * Custom hook for managing chat messages
- * @returns Object containing sendMessage function and loading state
  */
 export function useChatMessages() {
   const [isLoading, setIsLoading] = useState(false);
@@ -14,12 +15,6 @@ export function useChatMessages() {
 
   /**
    * Sends a new message and handles the response
-   * @param content Message content
-   * @param conversationId ID of the conversation
-   * @param userId ID of the user
-   * @param model AI model to use
-   * @param previousMessages Array of previous messages
-   * @param onMessageUpdate Callback to update message content
    */
   const sendMessage = async (
     content: string,
@@ -31,8 +26,8 @@ export function useChatMessages() {
   ) => {
     try {
       setIsLoading(true);
+      logger.debug('Sending message:', { conversationId, model });
       
-      // Create and save the user's message
       const userMessage = await ChatService.createMessage({
         role: 'user',
         content,
@@ -40,7 +35,6 @@ export function useChatMessages() {
         user_id: userId,
       });
 
-      // Create a placeholder for the assistant's response
       const assistantMessage = await ChatService.createMessage({
         role: 'assistant',
         content: '',
@@ -48,7 +42,6 @@ export function useChatMessages() {
         user_id: null,
       });
 
-      // Get the current session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No active session');
 
@@ -66,13 +59,16 @@ export function useChatMessages() {
 
       return [userMessage, assistantMessage];
     } catch (error) {
-      console.error('Error in sendMessage:', error);
+      const handledError = handleError(error);
+      logger.error(handledError, 'sendMessage');
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send message",
+        description: handledError.message,
         variant: "destructive",
       });
-      throw error;
+      
+      throw handledError;
     } finally {
       setIsLoading(false);
     }
