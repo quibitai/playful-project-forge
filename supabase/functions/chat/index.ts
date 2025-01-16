@@ -16,7 +16,8 @@ serve(async (req) => {
     const { messages, model } = await req.json();
     console.log('Received request:', { model, messageCount: messages.length });
 
-    if (!Deno.env.get('OPENAI_API_KEY')) {
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
       console.error('OPENAI_API_KEY is not set');
       throw new Error('OpenAI API key is not configured');
     }
@@ -25,7 +26,7 @@ serve(async (req) => {
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -41,16 +42,39 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
 
-    // Log the response headers to debug streaming issues
-    console.log('OpenAI Response Headers:', Object.fromEntries(openAIResponse.headers.entries()));
-    console.log('Streaming response from OpenAI...');
+    // Create a TransformStream to process the response
+    const transformStream = new TransformStream({
+      async transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
 
-    // Ensure we're getting a readable stream
-    if (!openAIResponse.body) {
-      throw new Error('No response body from OpenAI');
-    }
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices[0]?.delta?.content || '';
+              if (content) {
+                controller.enqueue(line + '\n');
+              }
+            } catch (error) {
+              console.error('Error parsing chunk:', error);
+            }
+          }
+        }
+      },
+    });
 
-    return new Response(openAIResponse.body, {
+    // Pipe the response through the transform stream
+    const responseStream = openAIResponse.body
+      .pipeThrough(new TextDecoderStream())
+      .pipeThrough(transformStream)
+      .pipeThrough(new TextEncoderStream());
+
+    return new Response(responseStream, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
