@@ -10,6 +10,7 @@ export class MessageService {
       .single();
 
     if (error) {
+      console.error('Error creating message:', error);
       throw new Error('Failed to create message');
     }
 
@@ -31,27 +32,34 @@ export class MessageService {
       .eq('id', messageId);
 
     if (error) {
+      console.error('Error updating message:', error);
       throw new Error('Failed to update message');
     }
   }
 
   static async sendMessageToAI(messages: Message[], model: string): Promise<string> {
     try {
+      console.log('Sending messages to AI:', { messageCount: messages.length, model });
+      
       const response = await supabase.functions.invoke<{ data: AIResponse }>('chat', {
         body: { messages, model },
       });
 
       if (response.error) {
+        console.error('AI function error:', response.error);
         throw new Error('Failed to get AI response');
       }
 
       if (!response.data?.data?.content) {
-        throw new Error('No content received from AI');
+        console.error('Invalid AI response format:', response);
+        throw new Error('Invalid response format from AI');
       }
 
+      console.log('AI response received successfully');
       return response.data.data.content;
     } catch (error) {
-      throw new Error('Failed to process AI response');
+      console.error('Error in sendMessageToAI:', error);
+      throw error;
     }
   }
 }

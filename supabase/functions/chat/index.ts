@@ -73,6 +73,7 @@ serve(async (req) => {
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
+        stream: false
       }),
     });
 
@@ -94,9 +95,9 @@ serve(async (req) => {
       throw new Error('Invalid response format from OpenAI API');
     }
 
-    const content = data.choices[0].message.content;
+    // Return the content directly as a string, which is what our MessageService expects
     return new Response(
-      JSON.stringify({ content }),
+      JSON.stringify({ data: { content: data.choices[0].message.content } }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
