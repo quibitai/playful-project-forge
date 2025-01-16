@@ -18,17 +18,21 @@ async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStre
           const { done, value } = await reader.read();
           
           if (done) {
+            console.log('Stream complete');
             controller.close();
             break;
           }
 
           const chunk = decoder.decode(value);
+          console.log('Received chunk:', chunk);
+          
           const lines = chunk.split('\n');
 
           for (const line of lines) {
             if (line.trim() === '') continue;
             
             if (line.includes('[DONE]')) {
+              console.log('Received [DONE] signal');
               controller.close();
               return;
             }
@@ -38,11 +42,13 @@ async function processOpenAIStream(stream: ReadableStream): Promise<ReadableStre
                 const json = JSON.parse(line.slice(6));
                 const content = json.choices[0]?.delta?.content;
                 if (content) {
+                  console.log('Processing content:', content);
                   controller.enqueue(encoder.encode(content));
                 }
               } catch (error) {
                 console.error('Error parsing JSON:', error);
-                continue; // Skip this chunk if there's an error parsing it
+                console.error('Problematic line:', line);
+                continue;
               }
             }
           }
@@ -66,6 +72,7 @@ serve(async (req) => {
   try {
     const { messages, model } = await req.json();
     console.log('Received request:', { model, messageCount: messages.length });
+    console.log('Messages:', JSON.stringify(messages, null, 2));
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
@@ -92,6 +99,8 @@ serve(async (req) => {
       console.error('OpenAI API error:', error);
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
+
+    console.log('OpenAI response status:', openAIResponse.status);
 
     if (!openAIResponse.body) {
       throw new Error('No response body from OpenAI');
