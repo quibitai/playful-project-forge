@@ -8,7 +8,6 @@ import {
   createConversation as createConversationOp,
   loadConversations as loadConversationsOp,
   loadConversation as loadConversationOp,
-  sendMessage as sendMessageOp 
 } from "@/operations/chatOperations";
 
 const ChatContext = createContext<{

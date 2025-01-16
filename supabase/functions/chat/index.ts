@@ -19,18 +19,8 @@ serve(async (req) => {
     }
 
     const { messages, model = 'gpt-4o-mini' } = await req.json();
-
-    const systemMessage = {
-      role: 'system',
-      content: `You are a helpful AI assistant. You can use markdown formatting in your responses:
-- Use **bold** for emphasis
-- Create \`code blocks\` for code
-- Use bullet points and numbered lists
-- Include tables when presenting structured data
-- Use > for blockquotes
-- Format code with syntax highlighting by specifying the language
-Please ensure your responses are well-formatted and easy to read.`
-    };
+    console.log('Received request with model:', model);
+    console.log('Messages:', messages);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -40,13 +30,26 @@ Please ensure your responses are well-formatted and easy to read.`
       },
       body: JSON.stringify({
         model,
-        messages: [systemMessage, ...messages],
+        messages,
         stream: true,
       }),
     });
 
-    // Return the stream directly
-    return new Response(response.body, {
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('OpenAI API error:', error);
+      throw new Error(error.error?.message || 'Failed to generate response');
+    }
+
+    // Transform the response into a readable stream
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        controller.enqueue(text);
+      },
+    });
+
+    return new Response(response.body?.pipeThrough(transformStream), {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
