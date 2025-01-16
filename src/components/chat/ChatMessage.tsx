@@ -3,13 +3,15 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import { ComponentPropsWithoutRef } from 'react';
+import { MessageReactions } from "./MessageReactions";
 
 interface ChatMessageProps {
+  id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  reactions?: any[];
 }
 
-// Define proper types for the markdown components
 type MarkdownComponentProps = {
   node?: any;
   inline?: boolean;
@@ -17,7 +19,7 @@ type MarkdownComponentProps = {
   children?: React.ReactNode;
 } & ComponentPropsWithoutRef<any>;
 
-export const ChatMessage = ({ role, content }: ChatMessageProps) => {
+export const ChatMessage = ({ id, role, content, reactions = [] }: ChatMessageProps) => {
   return (
     <div
       className={cn(
@@ -101,6 +103,7 @@ export const ChatMessage = ({ role, content }: ChatMessageProps) => {
             {content}
           </ReactMarkdown>
         </div>
+        {id && <MessageReactions messageId={id} reactions={reactions} />}
       </div>
     </div>
   );

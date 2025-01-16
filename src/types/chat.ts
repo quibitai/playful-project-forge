@@ -5,6 +5,15 @@ export interface Message {
   conversation_id: string;
   created_at?: string;
   user_id?: string | null;
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  reaction: string;
+  created_at: string;
 }
 
 export interface Conversation {
