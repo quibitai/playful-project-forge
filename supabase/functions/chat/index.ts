@@ -21,7 +21,7 @@ serve(async (req) => {
     const { messages, model = 'gpt-4o-mini' } = await req.json();
     console.log('Processing chat request:', { model, messageCount: messages.length });
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -34,14 +34,14 @@ serve(async (req) => {
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
+    if (!openAIResponse.ok) {
+      const error = await openAIResponse.json();
       console.error('OpenAI API error:', error);
       throw new Error(error.error?.message || 'Failed to generate response');
     }
 
-    // Stream the response directly
-    return new Response(response.body, {
+    // Return the streaming response directly
+    return new Response(openAIResponse.body, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',

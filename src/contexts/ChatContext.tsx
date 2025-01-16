@@ -140,10 +140,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (response.error) throw response.error;
 
-      // Process streaming response
-      let fullContent = '';
-      const reader = response.data.getReader();
+      // Create a new Response object from the streaming data
+      const streamResponse = new Response(response.data);
+      const reader = streamResponse.body?.getReader();
+      if (!reader) throw new Error('Failed to create stream reader');
+
       const decoder = new TextDecoder();
+      let fullContent = '';
 
       try {
         while (true) {
