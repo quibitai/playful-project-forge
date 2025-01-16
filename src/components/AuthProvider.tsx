@@ -7,12 +7,14 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   loading: true,
+  signOut: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -20,6 +22,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        if (error.message.includes("session_not_found")) {
+          // If session is not found, clear local state anyway
+          setSession(null);
+          setUser(null);
+          console.log("Session was already invalid, cleared local state");
+          return;
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error("Error during sign out:", error);
+      toast({
+        variant: "destructive",
+        title: "Sign Out Error",
+        description: "There was a problem signing out. Please try again.",
+      });
+    }
+  };
 
   useEffect(() => {
     // Get initial session
@@ -49,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (event === 'SIGNED_OUT') {
-        // Clear any local state
+        // Clear local state
         setSession(null);
         setUser(null);
       }
@@ -65,7 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [toast]);
 
   return (
-    <AuthContext.Provider value={{ session, user, loading }}>
+    <AuthContext.Provider value={{ session, user, loading, signOut: handleSignOut }}>
       {children}
     </AuthContext.Provider>
   );

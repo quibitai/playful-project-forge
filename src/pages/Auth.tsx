@@ -7,10 +7,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { AuthError, AuthApiError } from "@supabase/supabase-js";
+import { useAuth } from "@/components/AuthProvider";
 
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   useEffect(() => {
     // Check if user is already authenticated
