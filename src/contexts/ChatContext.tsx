@@ -143,17 +143,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Process the streaming response
       const reader = new ReadableStream({
         start(controller) {
-          const textDecoder = new TextDecoder();
-          const chunks = response.data.split('\n');
-          
-          for (const chunk of chunks) {
-            if (chunk.startsWith('data: ')) {
-              const data = chunk.slice(6);
+          if (typeof response.data !== 'string') {
+            controller.error(new Error('Invalid response format'));
+            return;
+          }
+
+          const lines = response.data.split('\n');
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
               if (data === '[DONE]') {
                 controller.close();
                 continue;
               }
-
               try {
                 const parsed = JSON.parse(data);
                 const content = parsed.choices[0]?.delta?.content;
