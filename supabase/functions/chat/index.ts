@@ -39,7 +39,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
         messages: messages.map(({ role, content }) => ({ role, content })),
-        stream: true,
+        stream: false, // Disabled streaming
       }),
     });
 
@@ -51,65 +51,15 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
 
-    if (!openAIResponse.body) {
-      throw new Error('No response body from OpenAI');
-    }
+    const data = await openAIResponse.json();
+    const content = data.choices[0].message.content;
 
-    const reader = openAIResponse.body.getReader();
-    const encoder = new TextEncoder();
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) {
-              console.log('Stream complete');
-              controller.close();
-              break;
-            }
-
-            const chunk = new TextDecoder().decode(value);
-            const lines = chunk.split('\n');
-            
-            for (const line of lines) {
-              if (line.trim() === '') continue;
-              
-              if (line === 'data: [DONE]') {
-                console.log('Received [DONE] signal');
-                controller.close();
-                return;
-              }
-
-              if (line.startsWith('data: ')) {
-                try {
-                  const json = JSON.parse(line.slice(6));
-                  const content = json.choices[0]?.delta?.content;
-                  if (content) {
-                    controller.enqueue(encoder.encode(content));
-                  }
-                } catch (error) {
-                  console.error('Error processing chunk:', error);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Stream processing error:', error);
-          controller.error(error);
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    return new Response(
+      JSON.stringify({ content }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
 
   } catch (error) {
     console.error('Error in chat function:', error);
