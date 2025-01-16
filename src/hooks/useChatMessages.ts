@@ -120,7 +120,7 @@ export function useChatMessages() {
 
       // Call the chat function using the REST endpoint
       const response = await fetch(
-        `${process.env.SUPABASE_URL}/functions/v1/chat`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
         {
           method: 'POST',
           headers: {
