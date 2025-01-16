@@ -140,12 +140,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (response.error) throw response.error;
 
-      // Create a new Response object from the streaming data
-      const streamResponse = new Response(response.data);
-      const reader = streamResponse.body?.getReader();
-      if (!reader) throw new Error('Failed to create stream reader');
+      // Process the streaming response
+      const reader = new ReadableStream({
+        start(controller) {
+          const textDecoder = new TextDecoder();
+          const chunks = response.data.split('\n');
+          
+          for (const chunk of chunks) {
+            if (chunk.startsWith('data: ')) {
+              const data = chunk.slice(6);
+              if (data === '[DONE]') {
+                controller.close();
+                continue;
+              }
 
-      const decoder = new TextDecoder();
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices[0]?.delta?.content;
+                if (content) {
+                  controller.enqueue(new TextEncoder().encode(content));
+                }
+              } catch (e) {
+                console.error('Error parsing chunk:', e);
+              }
+            }
+          }
+          controller.close();
+        },
+      }).getReader();
+
       let fullContent = '';
 
       try {
@@ -153,39 +176,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+          const chunk = new TextDecoder().decode(value);
+          fullContent += chunk;
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
+          // Update the message in the database
+          const { error: updateError } = await supabase
+            .from('messages')
+            .update({ content: fullContent })
+            .eq('id', savedAssistantMessage.id);
 
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices[0]?.delta?.content;
-                if (content) {
-                  fullContent += content;
-                  
-                  // Update the message in the database
-                  const { error: updateError } = await supabase
-                    .from('messages')
-                    .update({ content: fullContent })
-                    .eq('id', savedAssistantMessage.id);
+          if (updateError) throw updateError;
 
-                  if (updateError) throw updateError;
-
-                  // Update the message in the UI
-                  dispatch({
-                    type: 'UPDATE_MESSAGE',
-                    payload: { id: savedAssistantMessage.id, content: fullContent }
-                  });
-                }
-              } catch (e) {
-                console.error('Error parsing chunk:', e);
-              }
-            }
-          }
+          // Update the message in the UI
+          dispatch({
+            type: 'UPDATE_MESSAGE',
+            payload: { id: savedAssistantMessage.id, content: fullContent }
+          });
         }
       } catch (error) {
         console.error('Error processing stream:', error);
