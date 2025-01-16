@@ -127,25 +127,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         payload: { ...savedAssistantMessage, role: 'assistant' as const } 
       });
 
-      // Call the chat function
-      const response = await supabase.functions.invoke('chat', {
-        body: { 
-          messages: [...state.messages, userMessage].map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          model: state.currentConversation.model,
-        },
-      });
+      // Call the chat function with streaming response
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: [...state.messages, userMessage].map(msg => ({
+              role: msg.role,
+              content: msg.content
+            })),
+            model: state.currentConversation.model,
+          }),
+        }
+      );
 
-      if (!response.data) {
-        throw new Error('No response from chat function');
+      if (!response.ok) {
+        throw new Error('Failed to get response from chat function');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body reader available');
       }
 
       let fullContent = '';
-
-      // Process the streaming response
-      const reader = response.data.getReader();
       const decoder = new TextDecoder();
 
       try {

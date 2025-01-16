@@ -13,9 +13,10 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, model = 'gpt-4o-mini' } = await req.json();
+    const { messages, model } = await req.json();
     console.log('Processing chat request:', { model, messageCount: messages.length });
 
+    // Make request to OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -23,7 +24,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
+        model: model || 'gpt-4o-mini',
         messages,
         stream: true,
       }),
@@ -35,8 +36,18 @@ serve(async (req) => {
       throw new Error(error.error?.message || 'Failed to generate response');
     }
 
-    // Return the stream directly
-    return new Response(openAIResponse.body, {
+    // Create a TransformStream to process the response
+    const transformStream = new TransformStream({
+      async transform(chunk, controller) {
+        controller.enqueue(chunk);
+      },
+    });
+
+    // Pipe the response through the transform stream
+    openAIResponse.body?.pipeTo(transformStream.writable);
+
+    // Return the readable stream with appropriate headers
+    return new Response(transformStream.readable, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
@@ -47,9 +58,15 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in chat function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { 
+        status: 500,
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
   }
 });
