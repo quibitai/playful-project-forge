@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Message, Conversation } from "@/types/chat";
+import { Message } from "@/types/chat";
 
 /**
  * Service class for handling chat-related operations
@@ -9,20 +9,30 @@ export class ChatService {
 
   /**
    * Creates a new message in the database
+   * @param messageData The message data to create
+   * @returns Promise<Message>
    */
-  static async createMessage(message: Partial<Message>): Promise<Message> {
+  static async createMessage(messageData: {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    conversation_id: string;
+    user_id?: string | null;
+  }): Promise<Message> {
     const { data, error } = await supabase
       .from('messages')
-      .insert([message])
+      .insert([messageData])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as Message;
   }
 
   /**
    * Handles streaming response from the chat API
+   * @param response The streaming response from the API
+   * @param messageId The ID of the message to update
+   * @param onUpdate Callback function to handle updates
    */
   static async handleStreamResponse(
     response: Response,
@@ -75,6 +85,10 @@ export class ChatService {
 
   /**
    * Sends a chat message to the API
+   * @param messages Array of messages in the conversation
+   * @param model The AI model to use
+   * @param accessToken The user's access token
+   * @returns Promise<Response>
    */
   static async sendChatMessage(
     messages: Message[],
