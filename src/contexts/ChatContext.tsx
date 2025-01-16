@@ -1,14 +1,9 @@
 import { createContext, useContext, useReducer, ReactNode } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 import { chatReducer } from "@/reducers/chatReducer";
 import { ChatState, Message, Conversation } from "@/types/chat";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  createConversation as createConversationOp,
-  loadConversations as loadConversationsOp,
-  loadConversation as loadConversationOp,
-} from "@/operations/chatOperations";
+import { useChatMessages } from "@/hooks/useChatMessages";
+import { useConversations } from "@/hooks/useConversations";
 
 const ChatContext = createContext<{
   state: ChatState;
@@ -28,35 +23,26 @@ const initialState: ChatState = {
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
-  const { toast } = useToast();
   const { user } = useAuth();
+  const { sendMessage: sendChatMessage, isLoading: isSending } = useChatMessages();
+  const { 
+    createConversation: createNewConversation, 
+    loadConversations: loadAllConversations,
+    loadConversation: loadSingleConversation,
+    isLoading: isLoadingConversations 
+  } = useConversations();
 
   const createConversation = async (model: string): Promise<Conversation> => {
-    try {
-      const conversation = await createConversationOp(model, user);
-      dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
-      return conversation;
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create conversation",
-        variant: "destructive",
-      });
-      throw error;
-    }
+    const conversation = await createNewConversation(model, user);
+    dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
+    return conversation;
   };
 
   const loadConversations = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const conversations = await loadConversationsOp();
+      const conversations = await loadAllConversations();
       dispatch({ type: 'SET_CONVERSATIONS', payload: conversations });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load conversations",
-        variant: "destructive",
-      });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -65,15 +51,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const loadConversation = async (id: string) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const { conversation, messages } = await loadConversationOp(id);
+      const { conversation, messages } = await loadSingleConversation(id);
       dispatch({ type: 'SET_CURRENT_CONVERSATION', payload: conversation });
       dispatch({ type: 'SET_MESSAGES', payload: messages });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load conversation",
-        variant: "destructive",
-      });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -85,121 +65,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Create and save the user's message
-      const userMessage: Message = {
-        role: 'user',
+      const [userMessage, assistantMessage] = await sendChatMessage(
         content,
-        conversation_id: state.currentConversation.id,
-        user_id: user.id,
-      };
-
-      const { data: savedUserMessage, error: userMessageError } = await supabase
-        .from('messages')
-        .insert([userMessage])
-        .select()
-        .single();
-
-      if (userMessageError) throw userMessageError;
+        state.currentConversation.id,
+        user.id,
+        state.currentConversation.model,
+        state.messages,
+        (id, content) => dispatch({
+          type: 'UPDATE_MESSAGE',
+          payload: { id, content }
+        })
+      );
 
       dispatch({ 
         type: 'ADD_MESSAGE', 
-        payload: { ...savedUserMessage, role: 'user' as const } 
+        payload: { ...userMessage, role: 'user' as const } 
       });
-
-      // Create a new message for the assistant's response
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: '',
-        conversation_id: state.currentConversation.id,
-        user_id: null,
-      };
-
-      const { data: savedAssistantMessage, error: assistantMessageError } = await supabase
-        .from('messages')
-        .insert([assistantMessage])
-        .select()
-        .single();
-
-      if (assistantMessageError) throw assistantMessageError;
 
       dispatch({ 
         type: 'ADD_MESSAGE', 
-        payload: { ...savedAssistantMessage, role: 'assistant' as const } 
-      });
-
-      // Call the chat function with streaming response
-      const response = await supabase.functions.invoke<ReadableStream>('chat', {
-        body: { 
-          messages: [...state.messages, userMessage].map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          model: state.currentConversation.model,
-        },
-        headers: {
-          'Accept': 'text/event-stream',
-        }
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data) throw new Error('No response from chat function');
-
-      const reader = response.data.getReader();
-      let fullContent = '';
-      const decoder = new TextDecoder();
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.trim() === '' || !line.startsWith('data: ')) continue;
-            
-            const data = line.slice(6);
-            if (data === '[DONE]') break;
-
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content;
-              if (content) {
-                fullContent += content;
-
-                // Update the message in the database
-                const { error: updateError } = await supabase
-                  .from('messages')
-                  .update({ content: fullContent })
-                  .eq('id', savedAssistantMessage.id);
-
-                if (updateError) throw updateError;
-
-                // Update the message in the UI
-                dispatch({
-                  type: 'UPDATE_MESSAGE',
-                  payload: { id: savedAssistantMessage.id, content: fullContent }
-                });
-              }
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error processing stream:', error);
-        throw error;
-      } finally {
-        reader.releaseLock();
-      }
-
-    } catch (error) {
-      console.error('Error in sendMessage:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message",
-        variant: "destructive",
+        payload: { ...assistantMessage, role: 'assistant' as const } 
       });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
