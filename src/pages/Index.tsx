@@ -18,10 +18,11 @@ const ChatInterface = () => {
       try {
         await loadConversations();
         // Create initial conversation if none exists
-        if (!state.currentConversation) {
+        if (state.conversations.length === 0) {
           await createConversation(model);
         }
       } catch (error) {
+        console.error('Error initializing chat:', error);
         toast({
           title: "Error",
           description: "Failed to initialize chat",
@@ -33,7 +34,7 @@ const ChatInterface = () => {
     if (user) {
       initializeChat();
     }
-  }, [user]); // Only run when user changes
+  }, [user, loadConversations, createConversation, model, state.conversations.length, toast]);
 
   const handleSubmit = async (content: string) => {
     try {
@@ -51,6 +52,7 @@ const ChatInterface = () => {
       }
       await sendMessage(content);
     } catch (error) {
+      console.error('Error sending message:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send message",
@@ -107,8 +109,4 @@ const ChatInterface = () => {
   );
 };
 
-const Index = () => (
-  <ChatInterface />
-);
-
-export default Index;
+export default ChatInterface;

@@ -3,9 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/components/AuthProvider";
+import { AuthProvider } from "@/components/AuthProvider";
 import { ChatProvider } from "@/contexts/ChatContext";
-import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 
@@ -28,12 +27,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <ChatProvider>
+    <BrowserRouter>
+      <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+          <ChatProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route
@@ -45,10 +42,12 @@ const App = () => (
                 }
               />
             </Routes>
-          </BrowserRouter>
+            <Toaster />
+            <Sonner />
+          </ChatProvider>
         </TooltipProvider>
-      </ChatProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 
