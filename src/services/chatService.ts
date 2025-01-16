@@ -1,0 +1,94 @@
+import { supabase } from "@/integrations/supabase/client";
+import { Message } from "@/types/chat";
+
+/**
+ * Service class for handling chat-related operations
+ */
+export class ChatService {
+  private static readonly FUNCTIONS_ENDPOINT = 'https://eosulcourcwvrlgkaiwv.supabase.co/functions/v1/chat';
+
+  /**
+   * Sends a message to the chat API and handles the streaming response
+   * @param content The message content
+   * @param messageId The ID of the message to update with the response
+   * @param session The current user session
+   * @param onUpdate Callback function to update the message content
+   */
+  static async handleStreamResponse(
+    response: Response,
+    messageId: string,
+    onUpdate: (id: string, content: string) => void
+  ): Promise<void> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No reader available');
+    }
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.trim() === '' || !line.startsWith('data: ')) continue;
+          
+          const data = line.slice(6);
+          if (data === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices[0]?.delta?.content;
+            if (content) {
+              fullContent += content;
+              console.log('Streaming content:', content);
+
+              await supabase
+                .from('messages')
+                .update({ content: fullContent })
+                .eq('id', messageId);
+
+              onUpdate(messageId, fullContent);
+            }
+          } catch (e) {
+            console.error('Error parsing chunk:', e);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  /**
+   * Sends a chat message to the API
+   * @param messages Previous messages in the conversation
+   * @param model The AI model to use
+   * @param accessToken The user's access token
+   */
+  static async sendChatMessage(
+    messages: Message[],
+    model: string,
+    accessToken: string
+  ): Promise<Response> {
+    const response = await fetch(this.FUNCTIONS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ messages, model }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send chat message');
+    }
+
+    return response;
+  }
+}
