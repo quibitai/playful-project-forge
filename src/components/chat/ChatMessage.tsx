@@ -2,10 +2,16 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
+import { ComponentPropsWithoutRef } from 'react';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant' | 'system';
   content: string;
+}
+
+// Define proper types for the code component props
+interface CodeProps extends ComponentPropsWithoutRef<'code'> {
+  inline?: boolean;
 }
 
 export const ChatMessage = ({ role, content }: ChatMessageProps) => {
@@ -34,7 +40,7 @@ export const ChatMessage = ({ role, content }: ChatMessageProps) => {
                   <pre {...props} className="rounded-lg bg-muted p-4 overflow-x-auto" />
                 </div>
               ),
-              code: ({ node, inline, ...props }) => (
+              code: ({ inline, ...props }: CodeProps) => (
                 inline ? 
                 <code {...props} className="rounded bg-muted px-1 py-0.5" /> :
                 <code {...props} className="text-sm" />
