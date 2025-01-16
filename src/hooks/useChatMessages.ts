@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Message } from "@/types/chat";
+import { Message, MessageRole } from "@/types/messages";
 import { useToast } from "@/hooks/use-toast";
-import { ChatService } from "@/services/chatService";
+import { MessageService } from "@/services/messageService";
 import { logger } from "@/services/loggingService";
 
 export function useChatMessages() {
@@ -15,37 +15,37 @@ export function useChatMessages() {
     model: string,
     previousMessages: Message[],
     onMessageUpdate: (id: string, content: string) => void
-  ) => {
+  ): Promise<[Message, Message]> => {
     try {
       setIsLoading(true);
       logger.debug('Starting message send process:', { conversationId, model });
       
-      const userMessage = await ChatService.createMessage({
-        role: 'user',
+      const userMessage = await MessageService.createMessage({
+        role: 'user' as MessageRole,
         content,
         conversation_id: conversationId,
         user_id: userId,
       });
       logger.debug('User message created:', userMessage);
 
-      const assistantMessage = await ChatService.createMessage({
-        role: 'assistant',
+      const assistantMessage = await MessageService.createMessage({
+        role: 'assistant' as MessageRole,
         content: '',
         conversation_id: conversationId,
         user_id: null,
       });
       logger.debug('Assistant message placeholder created:', assistantMessage);
 
-      const aiResponse = await ChatService.sendMessageToAI(
+      const aiResponse = await MessageService.sendMessageToAI(
         [...previousMessages, userMessage],
         model
       );
       logger.debug('AI response received:', aiResponse);
 
-      await ChatService.updateMessage(assistantMessage.id, aiResponse);
-      onMessageUpdate(assistantMessage.id, aiResponse);
+      await MessageService.updateMessage(assistantMessage.id!, aiResponse);
+      onMessageUpdate(assistantMessage.id!, aiResponse);
 
-      return [userMessage, assistantMessage];
+      return [userMessage, { ...assistantMessage, content: aiResponse }];
     } catch (error) {
       logger.error('Error in sendMessage:', error);
       
