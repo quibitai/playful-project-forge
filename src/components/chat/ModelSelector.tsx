@@ -15,7 +15,7 @@ export const ModelSelector = ({ value, onChange }: ModelSelectorProps) => {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Select model" />
+        <SelectValue placeholder="Select a model" />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
