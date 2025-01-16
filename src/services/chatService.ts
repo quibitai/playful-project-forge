@@ -40,16 +40,12 @@ export class ChatService {
         const lines = chunk.split('\n');
         
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
+          if (!line.trim() || !line.startsWith('data: ')) continue;
           
-          const data = line.slice(6);
-          if (data === '[DONE]') break;
-
           try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices[0]?.delta?.content;
-            if (delta) {
-              content += delta;
+            const data = JSON.parse(line.slice(6));
+            if (data.content) {
+              content += data.content;
               await supabase
                 .from('messages')
                 .update({ content })
@@ -57,7 +53,7 @@ export class ChatService {
               onUpdate(messageId, content);
             }
           } catch (e) {
-            console.error('Error:', e);
+            console.error('Error parsing chunk:', e);
           }
         }
       }

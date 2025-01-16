@@ -42,53 +42,54 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
     }
 
-    if (!openAIResponse.body) {
-      throw new Error('No response body from OpenAI');
-    }
+    // Transform the response into a readable stream
+    const stream = openAIResponse.body;
+    const reader = stream.getReader();
+    const encoder = new TextEncoder();
 
-    // Set up the response with appropriate headers for streaming
     const responseStream = new ReadableStream({
       async start(controller) {
-        const reader = openAIResponse.body.getReader();
-        const decoder = new TextDecoder();
-        
         try {
           while (true) {
             const { done, value } = await reader.read();
+            
             if (done) {
               controller.close();
               break;
             }
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+            const text = new TextDecoder().decode(value);
+            const lines = text.split('\n');
 
             for (const line of lines) {
               if (line.trim() === '') continue;
-              if (line.trim() === 'data: [DONE]') {
+              
+              if (line.includes('[DONE]')) {
                 controller.close();
                 return;
               }
+
               if (line.startsWith('data: ')) {
                 try {
-                  const data = line.slice(6);
-                  const parsed = JSON.parse(data);
-                  const content = parsed.choices[0]?.delta?.content;
+                  const json = JSON.parse(line.slice(6));
+                  const content = json.choices[0]?.delta?.content;
                   if (content) {
-                    controller.enqueue(line + '\n');
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
                   }
                 } catch (error) {
-                  console.error('Error parsing chunk:', error);
-                  continue;
+                  console.error('Error parsing JSON:', error);
                 }
               }
             }
           }
         } catch (error) {
-          console.error('Error processing stream:', error);
+          console.error('Stream processing error:', error);
           controller.error(error);
         }
       },
+      cancel() {
+        reader.releaseLock();
+      }
     });
 
     return new Response(responseStream, {
