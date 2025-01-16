@@ -27,7 +27,14 @@ const ChatInterface = () => {
     try {
       if (!state.currentConversation) {
         const conversation = await createConversation(model);
-        if (!conversation) return;
+        if (!conversation) {
+          toast({
+            title: "Error",
+            description: "Failed to create conversation",
+            variant: "destructive",
+          });
+          return;
+        }
       }
       await sendMessage(content);
     } catch (error) {

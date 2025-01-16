@@ -76,7 +76,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const typedMessages: Message[] = messages.map(msg => ({
         ...msg,
         role: msg.role as MessageRole,
-        user_id: msg.user_id
+        user_id: msg.user_id ?? null
       }));
       
       dispatch({ type: 'SET_CURRENT_CONVERSATION', payload: conversation });
